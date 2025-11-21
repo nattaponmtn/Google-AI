@@ -36,6 +36,7 @@ export interface RawCompany {
   address?: string; is_active?: boolean; parent_company_id?: string; 
 }
 export interface RawLocation { id: string; company_id: string; name: string; }
+export interface RawStorageLocation { id: string; name: string; } // New Storage Location
 export interface RawSystem { id: string; company_id: string; name: string; name_th?: string; description?: string; }
 export interface RawEquipmentType { id: string; name: string; name_th?: string; description?: string; company_id?: string; }
 export interface RawAsset { 
@@ -73,8 +74,7 @@ export interface RawWorkOrderTask {
 }
 export interface RawPart { 
   id: string; 
-  name: string; 
-  name_en?: string; // Added to support name_en column
+  name_en: string; // Changed from 'name' to match backend update
   name_th?: string; 
   stock_quantity: number; 
   min_stock_level: number; 
@@ -108,6 +108,11 @@ export interface Company {
 export interface Location {
   id: string;
   companyId: string;
+  name: string;
+}
+
+export interface StorageLocation {
+  id: string;
   name: string;
 }
 
@@ -213,7 +218,7 @@ export interface WorkOrderTask {
 
 export interface InventoryPart {
   id: string;
-  name: string;
+  name: string; // Matches name_en
   nameTh?: string;
   stockQuantity: number;
   minStockLevel: number;
