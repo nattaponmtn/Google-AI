@@ -1,5 +1,6 @@
 
 
+
 import { WorkOrder, Priority, Status, Asset, WorkType, WorkOrderTask, WorkOrderPart, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, InventoryPart, Tool, ToolCheckout, UserProfile } from "../types";
 import { RawAsset, RawWorkOrder, RawCompany, RawLocation, RawSystem, RawEquipmentType, RawPMTemplate, RawPMDetail, RawWorkOrderTask, RawPart, RawWOPart, RawTool, RawToolCheckout, RawUserProfile, RawAttachment } from "../types";
 import { SHEET_API_URL, SHEET_API_KEY } from "../constants";
@@ -159,7 +160,7 @@ const normalizeTask = (raw: RawWorkOrderTask): WorkOrderTask => ({
 
 const normalizePart = (raw: RawPart): InventoryPart => ({
     id: raw.id,
-    name: raw.name,
+    name: raw.name || raw.name_en || 'Unknown Part',
     nameTh: raw.name_th,
     stockQuantity: Number(raw.stock_quantity),
     minStockLevel: Number(raw.min_stock_level),
