@@ -1,9 +1,6 @@
 
-
-
-
-import { WorkOrder, Priority, Status, Asset, WorkType, WorkOrderTask, WorkOrderPart, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, InventoryPart, Tool, ToolCheckout, UserProfile } from "../types";
-import { RawAsset, RawWorkOrder, RawCompany, RawLocation, RawSystem, RawEquipmentType, RawPMTemplate, RawPMDetail, RawWorkOrderTask, RawPart, RawWOPart, RawTool, RawToolCheckout, RawUserProfile, RawAttachment } from "../types";
+import { WorkOrder, Priority, Status, Asset, WorkType, WorkOrderTask, WorkOrderPart, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, InventoryPart, Tool, ToolCheckout, UserProfile, StorageLocation } from "../types";
+import { RawAsset, RawWorkOrder, RawCompany, RawLocation, RawSystem, RawEquipmentType, RawPMTemplate, RawPMDetail, RawWorkOrderTask, RawPart, RawWOPart, RawTool, RawToolCheckout, RawUserProfile, RawAttachment, RawStorageLocation } from "../types";
 import { SHEET_API_URL, SHEET_API_KEY } from "../constants";
 
 // Helper to append API Key to URL
@@ -23,6 +20,11 @@ const normalizeCompany = (raw: RawCompany): Company => ({
 const normalizeLocation = (raw: RawLocation): Location => ({
     id: raw.id,
     companyId: raw.company_id,
+    name: raw.name
+});
+
+const normalizeStorageLocation = (raw: RawStorageLocation): StorageLocation => ({
+    id: raw.id,
     name: raw.name
 });
 
@@ -46,7 +48,7 @@ const normalizeAsset = (raw: RawAsset, locations: Location[]): Asset => {
     return {
         id: raw.id,
         assetTag: raw.asset_tag,
-        name: raw.asset_name, // Correctly matched with DB dump
+        name: raw.asset_name, 
         category: raw.category,
         equipmentTypeId: raw.equipment_type_id,
         systemId: raw.system_id,
@@ -90,21 +92,16 @@ const normalizePMDetail = (raw: RawPMDetail): PMTemplateDetail => ({
 });
 
 const normalizeWorkOrder = (raw: RawWorkOrder, assets: Asset[], companies: Company[], attachments: RawAttachment[]): WorkOrder => {
-    // Robust lookup for messy data:
-    // 1. Try Exact ID Match
     let asset = assets.find(a => a.id === raw.asset_id);
     
-    // 2. Try Asset Tag Match (if asset_id is actually a tag)
     if (!asset && raw.asset_id) {
         asset = assets.find(a => a.assetTag.toLowerCase() === raw.asset_id.toLowerCase());
     }
     
-    // 3. Try Asset Name Match (if asset_id is a name like "Conveyor Belt")
     if (!asset && raw.asset_id) {
         asset = assets.find(a => a.name.toLowerCase() === raw.asset_id.toLowerCase());
     }
 
-    // Determine Company: Use matched asset's company, or raw company_id, or fallback
     const company = companies.find(c => asset?.companyId === c.id) || 
                     companies.find(c => c.id === raw.company_id) || 
                     companies[0];
@@ -116,7 +113,6 @@ const normalizeWorkOrder = (raw: RawWorkOrder, assets: Asset[], companies: Compa
     if (pVal === '3') priority = Priority.HIGH;
     if (pVal === '4') priority = Priority.CRITICAL;
 
-    // Find associated images
     const images = attachments
         .filter(att => att.work_order_id === raw.id)
         .map(att => att.file_url);
@@ -130,7 +126,7 @@ const normalizeWorkOrder = (raw: RawWorkOrder, assets: Asset[], companies: Compa
         status: raw.status || Status.OPEN,
         priority: priority,
         equipmentTypeId: raw.equipment_type_id || (asset ? asset.equipmentTypeId : undefined), 
-        assetId: asset ? asset.id : (raw.asset_id || 'TBD'), // Use found ID or 'TBD' or the raw string if it has value
+        assetId: asset ? asset.id : (raw.asset_id || 'TBD'),
         locationId: asset ? asset.locationId : (raw.location_id || ''),
         systemId: asset ? asset.systemId : (raw.system_id || ''),
         pmTemplateId: raw.pm_template_id,
@@ -140,7 +136,6 @@ const normalizeWorkOrder = (raw: RawWorkOrder, assets: Asset[], companies: Compa
         scheduledDate: raw.scheduled_date,
         completedAt: raw.completed_at,
         estimatedHours: raw.estimated_hours ? Number(raw.estimated_hours) : 0,
-        // UI Helpers
         assetName: asset ? asset.name : (raw.asset_id ? `Unknown (${raw.asset_id})` : 'Unknown'),
         companyName: company ? company.name : 'Unknown',
         site: company ? company.id : 'Unknown',
@@ -159,17 +154,21 @@ const normalizeTask = (raw: RawWorkOrderTask): WorkOrderTask => ({
     completedAt: raw.completed_at
 });
 
-const normalizePart = (raw: RawPart): InventoryPart => ({
-    id: raw.id,
-    name: raw.name || raw.name_en || 'Unknown Part',
-    nameTh: raw.name_th,
-    stockQuantity: Number(raw.stock_quantity),
-    minStockLevel: Number(raw.min_stock_level),
-    unitPrice: raw.unit_price ? Number(raw.unit_price) : 0,
-    location: raw.location || '-',
-    brand: raw.brand,
-    category: raw.category
-});
+const normalizePart = (raw: RawPart): InventoryPart => {
+    return {
+        id: raw.id,
+        // Ensure we catch 'name_en' or fallback to 'name' if API sends legacy format
+        name: raw.name_en || (raw as any).name || '', 
+        nameTh: raw.name_th || '',
+        stockQuantity: Number(raw.stock_quantity) || 0,
+        minStockLevel: Number(raw.min_stock_level) || 0,
+        unitPrice: raw.unit_price ? Number(raw.unit_price) : 0,
+        // Prevent undefined/null which causes controlled input issues
+        location: raw.location || '', 
+        brand: raw.brand || '',
+        category: raw.category || ''
+    };
+};
 
 const normalizeWOPart = (raw: RawWOPart): WorkOrderPart => ({
     id: raw.id,
@@ -214,6 +213,7 @@ const normalizeUserProfile = (raw: RawUserProfile): UserProfile => {
 export interface FullDatabase {
     companies: Company[];
     locations: Location[];
+    storageLocations: StorageLocation[];
     systems: System[];
     equipmentTypes: EquipmentType[];
     assets: Asset[];
@@ -230,7 +230,6 @@ export interface FullDatabase {
 
 export const fetchFullDatabase = async (): Promise<FullDatabase | null> => {
     try {
-        // Ensure API Key is present in query parameters
         const response = await fetch(`${getAuthUrl()}&t=${Date.now()}`);
         
         if (!response.ok) {
@@ -241,6 +240,7 @@ export const fetchFullDatabase = async (): Promise<FullDatabase | null> => {
 
         const companies = (data['Companies'] || []).map(normalizeCompany);
         const locations = (data['Locations'] || []).map(normalizeLocation);
+        const storageLocations = (data['Storage_Locations'] || []).map(normalizeStorageLocation);
         const systems = (data['Systems'] || []).map(normalizeSystem);
         const eqTypes = (data['Equipment_Types'] || []).map(normalizeEquipType);
         
@@ -259,7 +259,7 @@ export const fetchFullDatabase = async (): Promise<FullDatabase | null> => {
         const users = (data['User_Profiles'] || []).map(normalizeUserProfile);
 
         return {
-            companies, locations, systems, equipmentTypes: eqTypes,
+            companies, locations, storageLocations, systems, equipmentTypes: eqTypes,
             assets, pmTemplates, pmDetails, workOrders,
             tasks, parts, partsUsed, tools, checkouts, users
         };
@@ -279,7 +279,6 @@ export const authenticateUser = async (identifier: string, pass: string): Promis
             payload: { identifier, pass }
         };
 
-        // Append API Key to POST URL
         const response = await fetch(getAuthUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -302,7 +301,6 @@ export const authenticateUser = async (identifier: string, pass: string): Promis
 
 export const uploadImageToDrive = async (base64Data: string, fileName: string, workOrderId: string): Promise<string | null> => {
     try {
-        // Remove Data URI prefix if present (e.g. "data:image/jpeg;base64,")
         const cleanBase64 = base64Data.includes('base64,') 
             ? base64Data.split('base64,')[1] 
             : base64Data;
@@ -317,7 +315,6 @@ export const uploadImageToDrive = async (base64Data: string, fileName: string, w
             }
         };
 
-        // Append API Key to POST URL
         const response = await fetch(getAuthUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -344,7 +341,6 @@ export const createWorkOrder = async (wo: WorkOrder): Promise<{ id: string, woNu
             payload: { workOrder: wo }
         };
 
-        // Append API Key to POST URL
         const response = await fetch(getAuthUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -381,7 +377,6 @@ export const updateWorkOrder = async (
         }
     };
 
-    // Append API Key to POST URL
     const response = await fetch(getAuthUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' }, 
@@ -406,7 +401,6 @@ export const deleteWorkOrder = async (id: string): Promise<boolean> => {
             payload: { id }
         };
 
-        // Append API Key to POST URL
         const response = await fetch(getAuthUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -426,9 +420,22 @@ export const deleteWorkOrder = async (id: string): Promise<boolean> => {
 
 export const createPart = async (part: InventoryPart): Promise<boolean> => {
     try {
+        // Match backend expected payload
         const payload = {
             action: 'createPart',
-            payload: { part }
+            payload: { 
+                part: {
+                   id: part.id.startsWith('PART-') ? '' : part.id, // Backend usually generates ID, but send placeholder if needed
+                   name_en: part.name,
+                   name_th: part.nameTh,
+                   stock_quantity: part.stockQuantity,
+                   min_stock_level: part.minStockLevel,
+                   unit_price: part.unitPrice,
+                   location: part.location,
+                   brand: part.brand,
+                   category: part.category
+                }
+            }
         };
 
         const response = await fetch(getAuthUrl(), {
@@ -450,7 +457,19 @@ export const updatePart = async (part: InventoryPart): Promise<boolean> => {
     try {
         const payload = {
             action: 'updatePart',
-            payload: { part }
+            payload: { 
+                 part: {
+                   id: part.id,
+                   name_en: part.name,
+                   name_th: part.nameTh,
+                   stock_quantity: part.stockQuantity,
+                   min_stock_level: part.minStockLevel,
+                   unit_price: part.unitPrice,
+                   location: part.location,
+                   brand: part.brand,
+                   category: part.category
+                }
+            }
         };
 
         const response = await fetch(getAuthUrl(), {
@@ -486,6 +505,52 @@ export const deletePart = async (id: string): Promise<boolean> => {
         return result.status === 'success';
     } catch (error) {
         console.error("Delete part failed:", error);
+        return false;
+    }
+};
+
+// --- STORAGE LOCATION ACTIONS ---
+
+export const createStorageLocation = async (name: string): Promise<boolean> => {
+    try {
+        const payload = {
+            action: 'createStorageLocation',
+            payload: { name }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Create storage failed:", error);
+        return false;
+    }
+};
+
+export const deleteStorageLocation = async (id: string): Promise<boolean> => {
+     try {
+        const payload = {
+            action: 'deleteStorageLocation',
+            payload: { id }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Delete storage failed:", error);
         return false;
     }
 };
