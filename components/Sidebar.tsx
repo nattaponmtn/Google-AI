@@ -1,15 +1,16 @@
 
 import React from 'react';
-import { LayoutDashboard, ClipboardList, PenTool, Settings, Building2, X, BookOpenCheck, Package, Wrench, Database } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, PenTool, Settings, Building2, X, BookOpenCheck, Package, Wrench, Database, Loader2, RefreshCw } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  isSyncing?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose, isSyncing = false }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'workorders', label: 'Work Orders', icon: ClipboardList },
@@ -78,12 +79,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-          <div className="bg-slate-800 rounded-lg p-3">
-            <p className="text-xs text-slate-400 mb-1">Storage Used</p>
-            <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full w-3/4"></div>
+          <div className="bg-slate-800 rounded-lg p-3 transition-colors">
+            <div className="flex justify-between items-center mb-1">
+                 <p className="text-xs text-slate-400">Database Status</p>
+                 {isSyncing ? (
+                    <Loader2 size={12} className="text-blue-400 animate-spin" />
+                 ) : (
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+                 )}
             </div>
-            <p className="text-xs text-right text-slate-400 mt-1">Live Sync (Sheet)</p>
+            
+            {isSyncing ? (
+                <div className="flex items-center gap-2 text-xs text-blue-400 font-medium animate-pulse">
+                    <RefreshCw size={12} className="animate-spin" />
+                    Syncing to Sheet...
+                </div>
+            ) : (
+                <p className="text-xs text-right text-slate-500 mt-1">Live Sync Active</p>
+            )}
           </div>
         </div>
       </div>

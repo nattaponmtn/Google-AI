@@ -1,8 +1,4 @@
 
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
@@ -22,21 +18,24 @@ import { MobileNav } from './components/MobileNav';
 import { QRScanner } from './components/QRScanner';
 import { PMSelectionModal } from './components/PMSelectionModal';
 import { PMGenerationModal } from './components/PMGenerationModal'; 
-import { fetchFullDatabase, createWorkOrder, updateWorkOrder } from './services/sheetService';
+import { fetchFullDatabase, createWorkOrder, updateWorkOrder, FullDatabase } from './services/sheetService';
 import { getCurrentUser, logout } from './services/authService';
 import { WorkOrder, Asset, PMTemplate, WorkType, Status, Priority, InventoryPart, Tool, WorkOrderTask, WorkOrderPart, Company, Location, System, PMTemplateDetail, ToolCheckout, EquipmentType, UserProfile, StorageLocation } from './types';
-import { Plus, Menu, ScanLine, Loader2, RefreshCw, Filter, Search, RotateCcw, SlidersHorizontal, ChevronRight, Calendar, User, LayoutList, CalendarDays } from 'lucide-react';
+import { Plus, Menu, ScanLine, Loader2, RefreshCw, Filter, Search, RotateCcw, SlidersHorizontal, ChevronRight, Calendar, LayoutList, CalendarDays } from 'lucide-react';
+
+const DB_CACHE_KEY = 'nexgen_db_cache';
 
 export const App: React.FC = () => {
   // --- Application State ---
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For initial hard load
+  const [isSyncing, setIsSyncing] = useState(false); // For background sync
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const dataFetchedRef = useRef(false); 
   
   // Master Data
   const [companies, setCompanies] = useState<Company[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]); // New State
+  const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
   const [systems, setSystems] = useState<System[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -85,32 +84,48 @@ export const App: React.FC = () => {
 
   // --- Initialization ---
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const applyDataToState = (data: FullDatabase) => {
+    setCompanies(data.companies);
+    setLocations(data.locations);
+    setStorageLocations(data.storageLocations);
+    setSystems(data.systems);
+    setEquipmentTypes(data.equipmentTypes);
+    setAssets(data.assets);
+    setPmTemplates(data.pmTemplates);
+    setPmDetails(data.pmDetails);
+    setWorkOrders(data.workOrders);
+    setWorkOrderTasks(data.tasks);
+    setInventoryParts(data.parts);
+    setPartsUsed(data.partsUsed);
+    setTools(data.tools);
+    setToolCheckouts(data.checkouts);
+    setUsers(data.users);
+  };
+
+  const loadData = async (forceBackground = false) => {
+    // If we have data already, don't block the UI, just sync in background
+    if (workOrders.length > 0 || forceBackground) {
+        setIsSyncing(true);
+    } else {
+        setIsLoading(true);
+    }
+
     try {
       const data = await fetchFullDatabase();
       if (data) {
-        setCompanies(data.companies);
-        setLocations(data.locations);
-        setStorageLocations(data.storageLocations); // Load Storage Locations
-        setSystems(data.systems);
-        setEquipmentTypes(data.equipmentTypes);
-        setAssets(data.assets);
-        setPmTemplates(data.pmTemplates);
-        setPmDetails(data.pmDetails);
-        setWorkOrders(data.workOrders);
-        setWorkOrderTasks(data.tasks);
-        setInventoryParts(data.parts);
-        setPartsUsed(data.partsUsed);
-        setTools(data.tools);
-        setToolCheckouts(data.checkouts);
-        setUsers(data.users);
+        applyDataToState(data);
+        // Cache the fresh data
+        localStorage.setItem(DB_CACHE_KEY, JSON.stringify(data));
       }
     } catch (e) {
       console.error("Data load failed", e);
-      alert("Failed to load data from Google Sheets. Please check your connection.");
+      // Don't alert on background sync failure to avoid annoying user
+      if (!forceBackground && workOrders.length === 0) {
+        alert("Failed to load data from Google Sheets. Please check your connection.");
+      }
     } finally {
       setIsLoading(false);
+      setIsSyncing(false);
     }
   };
 
@@ -119,9 +134,26 @@ export const App: React.FC = () => {
     if (user) {
         setCurrentUser(user);
         setIsAuthenticated(true);
+        
         if (!dataFetchedRef.current) {
             dataFetchedRef.current = true;
-            loadData();
+            
+            // STRATEGY: Cache-First
+            // 1. Try to load from Local Storage immediately
+            const cachedData = localStorage.getItem(DB_CACHE_KEY);
+            if (cachedData) {
+                try {
+                    const parsed = JSON.parse(cachedData);
+                    applyDataToState(parsed);
+                    setIsLoading(false); // Unblock UI immediately
+                    loadData(true); // Trigger background sync
+                } catch (e) {
+                    console.error("Cache parse error", e);
+                    loadData(false); // Fallback to normal load
+                }
+            } else {
+                loadData(false); // No cache, full load
+            }
         }
     } else {
         setIsLoading(false);
@@ -131,7 +163,7 @@ export const App: React.FC = () => {
   const handleLoginSuccess = (user: UserProfile) => {
       setCurrentUser(user);
       setIsAuthenticated(true);
-      loadData();
+      loadData(false);
   };
 
   const handleLogout = () => {
@@ -139,6 +171,7 @@ export const App: React.FC = () => {
       setIsAuthenticated(false);
       setCurrentUser(null);
       setWorkOrders([]);
+      localStorage.removeItem(DB_CACHE_KEY); // Optional: Clear cache on logout
   };
 
   // --- Handlers ---
@@ -146,9 +179,9 @@ export const App: React.FC = () => {
   const handleCreateWorkOrder = (newTicket: WorkOrder) => {
     setWorkOrders(prev => [newTicket, ...prev]);
     setCurrentPage('workorders');
-    setViewMode('list'); // Force list view when creating new
+    setViewMode('list'); 
     setSelectedWorkOrderId(newTicket.id);
-    loadData(); 
+    loadData(true); // Background sync
   };
 
   const handleWorkOrderUpdate = (updatedWO: WorkOrder, updatedTasks: WorkOrderTask[], updatedParts: WorkOrderPart[]) => {
@@ -161,6 +194,9 @@ export const App: React.FC = () => {
           const otherParts = prev.filter(p => p.workOrderId !== updatedWO.id);
           return [...otherParts, ...updatedParts];
       });
+      // No need to trigger full loadData immediately if we optimistic update, 
+      // but we can do it for consistency
+      loadData(true);
   };
 
   const handleDeleteWorkOrder = (id: string) => {
@@ -255,6 +291,7 @@ export const App: React.FC = () => {
         setCurrentPage('workorders');
         setViewMode('list');
         setSelectedWorkOrderId(finalWO.id);
+        loadData(true);
 
     } catch (error) {
         console.error("PM Gen Error", error);
@@ -309,6 +346,7 @@ export const App: React.FC = () => {
           alert(`Generated ${createdOrders.length} orders.`);
           setIsPMModalOpen(false);
           setCurrentPage('workorders');
+          loadData(true);
           
       } catch (error) {
           console.error("Batch Gen Error", error);
@@ -470,7 +508,7 @@ export const App: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-800">Work Orders</h2>
                     
                     <div className="flex gap-2">
-                        <button onClick={loadData} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white">
+                        <button onClick={() => loadData(true)} className={`p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white ${isSyncing ? 'animate-spin' : ''}`}>
                                 <RefreshCw size={20} />
                         </button>
                         <button onClick={() => setCurrentPage('create-ticket')} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
@@ -740,7 +778,7 @@ export const App: React.FC = () => {
         return <InventoryList 
                   parts={inventoryParts} 
                   storageLocations={storageLocations}
-                  onRefresh={loadData} 
+                  onRefresh={() => loadData(true)} 
                />;
       case 'tool-crib':
         return <ToolList tools={tools} checkouts={toolCheckouts} workOrders={workOrders} />;
@@ -774,6 +812,7 @@ export const App: React.FC = () => {
             }} 
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
+            isSyncing={isSyncing}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden relative md:ml-64 transition-all duration-300">
@@ -786,6 +825,7 @@ export const App: React.FC = () => {
                     <h1 className="font-bold text-lg text-slate-800">NexGen</h1>
                 </div>
                 <div className="flex items-center gap-3">
+                    {isSyncing && <Loader2 size={18} className="animate-spin text-blue-500" />}
                     <button onClick={() => setIsQRScannerOpen(true)} className="p-2 bg-blue-50 text-blue-600 rounded-full">
                         <ScanLine size={20} />
                     </button>
@@ -799,13 +839,21 @@ export const App: React.FC = () => {
             </header>
 
             <header className="hidden md:flex bg-white border-b border-slate-200 px-8 py-4 justify-between items-center">
-                <h1 className="text-xl font-bold text-slate-800 capitalize">
-                    {currentPage === 'dashboard' ? 'Dashboard' : 
-                     currentPage === 'workorders' ? 'Work Orders' :
-                     currentPage === 'assets' ? 'Asset Registry' :
-                     currentPage === 'inventory' ? 'Inventory Management' :
-                     currentPage.replace('-', ' ')}
-                </h1>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold text-slate-800 capitalize">
+                        {currentPage === 'dashboard' ? 'Dashboard' : 
+                         currentPage === 'workorders' ? 'Work Orders' :
+                         currentPage === 'assets' ? 'Asset Registry' :
+                         currentPage === 'inventory' ? 'Inventory Management' :
+                         currentPage.replace('-', ' ')}
+                    </h1>
+                    {isSyncing && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-full animate-pulse">
+                            <RefreshCw size={12} className="animate-spin" />
+                            Syncing...
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-4">
                      <button onClick={() => setIsQRScannerOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors">
                         <ScanLine size={18} />

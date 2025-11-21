@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryPart, StorageLocation } from '../types';
-import { Package, Search, AlertTriangle, CheckCircle2, Plus, MapPin, DollarSign, Pencil, Trash2, Save, X, Loader2, Tag, Hash, Settings } from 'lucide-react';
+import { Package, Search, AlertTriangle, CheckCircle2, Plus, MapPin, DollarSign, Pencil, Trash2, Save, X, Loader2, Tag, Hash, Settings, Filter } from 'lucide-react';
 import { createPart, updatePart, deletePart, createStorageLocation, deleteStorageLocation } from '../services/sheetService';
 
 interface InventoryListProps {
@@ -41,7 +41,6 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
   const [localParts, setLocalParts] = useState<InventoryPart[]>(parts);
   const [localStorageLocations, setLocalStorageLocations] = useState<StorageLocation[]>(storageLocations);
 
-  // Sync local state when props change (initial load or refresh)
   useEffect(() => {
       setLocalParts(parts);
       setLocalStorageLocations(storageLocations);
@@ -85,15 +84,15 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
 
   const handleEdit = (part: InventoryPart) => {
     setIsEditing(true);
-    // Ensure we copy all fields to prevent data loss
+    // Strictly populate form state with fallback values to prevent undefined/null issues
     setCurrentPart({
         id: part.id,
         name: part.name || '',
         nameTh: part.nameTh || '',
-        stockQuantity: part.stockQuantity || 0,
-        minStockLevel: part.minStockLevel || 0,
-        unitPrice: part.unitPrice || 0,
-        location: part.location || '', // Ensure this matches dropdown values
+        stockQuantity: Number(part.stockQuantity) || 0,
+        minStockLevel: Number(part.minStockLevel) || 0,
+        unitPrice: Number(part.unitPrice) || 0,
+        location: part.location || '',
         brand: part.brand || '',
         category: part.category || ''
     });
@@ -102,18 +101,16 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
 
   const handleDelete = async (id: string) => {
     if (window.confirm("ยืนยันการลบรายการนี้? (Are you sure?)")) {
-       // Optimistic Update
        const previousParts = [...localParts];
        setLocalParts(prev => prev.filter(p => p.id !== id));
        
        try {
           const success = await deletePart(id);
           if (!success) throw new Error('Failed');
-          // Refresh in background
           if (onRefresh) onRefresh();
        } catch (error) {
           alert("เกิดข้อผิดพลาดในการลบ (Error deleting)");
-          setLocalParts(previousParts); // Revert
+          setLocalParts(previousParts);
        }
     }
   };
@@ -122,18 +119,16 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
     e.preventDefault();
     setIsProcessing(true);
 
-    // Optimistic Update Payload
     const optimisticPart = { ...currentPart };
     const previousParts = [...localParts];
 
     try {
-      // Update UI immediately
       if (isEditing) {
          setLocalParts(prev => prev.map(p => p.id === optimisticPart.id ? optimisticPart : p));
       } else {
          setLocalParts(prev => [optimisticPart, ...prev]);
       }
-      setIsModalOpen(false); // Close modal immediately
+      setIsModalOpen(false);
 
       let success = false;
       if (isEditing) {
@@ -150,21 +145,22 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
     } catch (error) {
       console.error(error);
       alert("บันทึกไม่สำเร็จ (Save failed)");
-      setLocalParts(previousParts); // Revert
+      setLocalParts(previousParts);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Storage Location Handlers
   const handleAddStorageLocation = async (e: React.MouseEvent) => {
-      e.preventDefault(); // Prevent form submission/page reload
+      // CRITICAL FIX: Stop form submission and page refresh
+      e.preventDefault();
+      e.stopPropagation();
+      
       if (!newLocationName.trim()) return;
       
       const tempId = `LOC-${Date.now()}`;
       const newLoc = { id: tempId, name: newLocationName };
       
-      // Optimistic
       const prevLocs = [...localStorageLocations];
       setLocalStorageLocations(prev => [...prev, newLoc]);
       setNewLocationName('');
@@ -204,7 +200,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-6 animate-fade-in pb-24 md:pb-10">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
@@ -215,10 +211,10 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
         <div className="flex gap-3">
             <button 
                 onClick={handleAdd}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 transition-colors"
+                className="w-full md:w-auto flex justify-center items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 transition-colors font-medium"
             >
                 <Plus size={18} />
-                <span className="hidden md:inline">เพิ่มอะไหล่ (Add Part)</span>
+                <span>เพิ่มอะไหล่ (Add Part)</span>
             </button>
         </div>
       </div>
@@ -267,20 +263,24 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                       className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 hover:text-slate-900 select-none">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600 hover:text-slate-900 select-none bg-white px-3 py-1.5 rounded border border-slate-200 sm:border-none sm:bg-transparent">
                       <input 
                         type="checkbox" 
                         checked={filterLowStock}
                         onChange={(e) => setFilterLowStock(e.target.checked)}
                         className="rounded text-blue-600 focus:ring-blue-500"
                       />
-                      แสดงเฉพาะใกล้หมด (Low Stock)
+                      <span className="flex items-center gap-1">
+                        <Filter size={14} className="sm:hidden" /> 
+                        แสดงเฉพาะใกล้หมด
+                      </span>
                   </label>
               </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* DESKTOP VIEW: Table */}
+          <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm text-left">
                   <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
                       <tr>
@@ -357,20 +357,79 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                       })}
                   </tbody>
               </table>
-              {filteredParts.length === 0 && (
-                  <div className="p-12 text-center text-slate-400 flex flex-col items-center">
-                      <Package size={48} className="mb-3 opacity-20" />
-                      <p>ไม่พบรายการที่ค้นหา (No parts found)</p>
-                  </div>
-              )}
           </div>
+
+          {/* MOBILE VIEW: Card List */}
+          <div className="md:hidden bg-slate-50">
+              <div className="flex flex-col divide-y divide-slate-100">
+                {filteredParts.map((part) => {
+                   const isLow = part.stockQuantity <= part.minStockLevel;
+                   return (
+                     <div key={part.id} className="bg-white p-4 flex flex-col gap-3">
+                        {/* Header: Name & Status */}
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1 pr-2">
+                                <h3 className="font-bold text-slate-800 text-base leading-tight mb-0.5">{part.nameTh || part.name}</h3>
+                                <p className="text-xs text-slate-500">{part.name}</p>
+                            </div>
+                            <div className={`flex flex-col items-end shrink-0 px-2 py-1 rounded ${isLow ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+                                <span className="text-lg font-bold leading-none">{part.stockQuantity}</span>
+                                <span className="text-[10px] font-medium opacity-80">Min: {part.minStockLevel}</span>
+                            </div>
+                        </div>
+
+                        {/* Badges & Info */}
+                        <div className="flex flex-wrap items-center gap-2">
+                             <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{part.id}</span>
+                             {part.brand && <span className="text-[10px] text-blue-600 border border-blue-100 bg-blue-50 px-1.5 py-0.5 rounded-full">{part.brand}</span>}
+                             {part.category && <span className="text-[10px] text-slate-600 border border-slate-200 bg-slate-50 px-1.5 py-0.5 rounded-full">{part.category}</span>}
+                        </div>
+
+                        {/* Details Row */}
+                        <div className="grid grid-cols-2 gap-2 py-2 border-t border-slate-50 mt-1">
+                            <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                                <MapPin size={14} className="text-slate-400" />
+                                <span className="truncate">{part.location || '-'}</span>
+                            </div>
+                            <div className="flex items-center justify-end gap-1.5 text-sm text-slate-800 font-mono font-medium">
+                                ฿{(part.unitPrice || 0).toLocaleString()}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="grid grid-cols-4 gap-2 mt-1">
+                             <button 
+                                onClick={() => handleEdit(part)}
+                                className="col-span-3 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-medium text-sm transition-colors"
+                             >
+                                <Pencil size={16} /> แก้ไขข้อมูล
+                             </button>
+                             <button 
+                                onClick={() => handleDelete(part.id)}
+                                className="col-span-1 flex items-center justify-center py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                             >
+                                <Trash2 size={16} />
+                             </button>
+                        </div>
+                     </div>
+                   );
+                })}
+              </div>
+          </div>
+
+          {filteredParts.length === 0 && (
+              <div className="p-12 text-center text-slate-400 flex flex-col items-center bg-white">
+                  <Package size={48} className="mb-3 opacity-20" />
+                  <p>ไม่พบรายการที่ค้นหา (No parts found)</p>
+              </div>
+          )}
       </div>
 
       {/* PART MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
-                <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden my-auto">
+                <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center sticky top-0 z-10">
                     <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                         {isEditing ? <Pencil size={20} className="text-blue-600" /> : <Plus size={20} className="text-blue-600" />}
                         {isEditing ? 'แก้ไขรายการ (Edit Part)' : 'เพิ่มอะไหล่ใหม่ (Add New Part)'}
@@ -388,7 +447,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                             <input 
                                 type="text"
                                 name="name"
-                                value={currentPart.name}
+                                value={currentPart.name || ''}
                                 onChange={handleInputChange}
                                 required
                                 className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -455,7 +514,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                                     <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <select
                                         name="location"
-                                        value={currentPart.location}
+                                        value={currentPart.location || ''}
                                         onChange={handleInputChange}
                                         className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white appearance-none"
                                     >
@@ -463,6 +522,10 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                                         {localStorageLocations.map(loc => (
                                             <option key={loc.id} value={loc.name}>{loc.name}</option>
                                         ))}
+                                        {/* Fallback: if location isn't in list, show it anyway to preserve data */}
+                                        {currentPart.location && !localStorageLocations.find(l => l.name === currentPart.location) && (
+                                            <option value={currentPart.location}>{currentPart.location}</option>
+                                        )}
                                     </select>
                                 </div>
                                 <button 
@@ -505,12 +568,16 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                                     {CATEGORIES_TH.map(cat => (
                                         <option key={cat} value={cat}>{cat}</option>
                                     ))}
+                                    {/* Fallback: if category isn't in list, show it anyway */}
+                                    {currentPart.category && !CATEGORIES_TH.includes(currentPart.category) && (
+                                         <option value={currentPart.category}>{currentPart.category}</option>
+                                    )}
                                 </select>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4 sticky bottom-0 bg-white pb-2">
                         <button 
                             type="button" 
                             onClick={() => setIsModalOpen(false)}
@@ -565,7 +632,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
                             className="flex-1 p-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-blue-500"
                         />
                         <button 
-                            type="button" // EXPLICIT TYPE TO PREVENT FORM SUBMISSION
+                            type="button"
                             onClick={handleAddStorageLocation}
                             disabled={!newLocationName.trim()}
                             className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50"

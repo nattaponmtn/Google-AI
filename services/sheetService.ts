@@ -6,6 +6,34 @@ import { SHEET_API_URL, SHEET_API_KEY } from "../constants";
 // Helper to append API Key to URL
 const getAuthUrl = () => `${SHEET_API_URL}?key=${SHEET_API_KEY}`;
 
+// Helper to safely get object property case-insensitively and defensively
+const getVal = (obj: any, keys: string[]) => {
+  if (!obj) return '';
+  const objKeys = Object.keys(obj);
+  
+  // 1. Try Exact Match
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') return obj[k];
+  }
+
+  // 2. Try Case-Insensitive Match
+  for (const k of keys) {
+    const lowerK = k.toLowerCase();
+    const foundKey = objKeys.find(ok => ok.toLowerCase() === lowerK);
+    // Fix: Ensure we don't return an empty string if a better match might exist later, unless it's the only match
+    if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && String(obj[foundKey]).trim() !== '') return obj[foundKey];
+  }
+
+  // 3. Try Fuzzy Match (strip spaces, underscores, parens - keeping numbers and letters (including Thai))
+  for (const k of keys) {
+      const cleanK = k.toLowerCase().replace(/[\s_()]/g, '');
+      const foundKey = objKeys.find(ok => ok.toLowerCase().replace(/[\s_()]/g, '') === cleanK);
+      if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null && String(obj[foundKey]).trim() !== '') return obj[foundKey];
+  }
+
+  return '';
+};
+
 // --- NORMALIZATION HELPERS ---
 
 const normalizeCompany = (raw: RawCompany): Company => ({
@@ -155,18 +183,26 @@ const normalizeTask = (raw: RawWorkOrderTask): WorkOrderTask => ({
 });
 
 const normalizePart = (raw: RawPart): InventoryPart => {
+    // Enhanced fuzzy matching keys based on backend response patterns
+    const name = getVal(raw, ['name_en', 'name', 'Name', 'Name_En', 'item_name', 'ชื่อสินค้า', 'ชื่อ']);
+    const nameTh = getVal(raw, ['name_th', 'Name_Th', 'name_thai', 'Name (TH)', 'ชื่อไทย']);
+    const stock = getVal(raw, ['stock_quantity', 'stock', 'Stock_Quantity', 'qty', 'จำนวน', 'คงเหลือ']);
+    const min = getVal(raw, ['min_stock_level', 'min_stock', 'Min_Stock_Level', 'min', 'ขั้นต่ำ']);
+    const price = getVal(raw, ['unit_price', 'price', 'Unit_Price', 'cost', 'ราคา', 'ต้นทุน']);
+    const location = getVal(raw, ['location', 'Location', 'storage_location', 'bin', 'จุดเก็บ', 'สถานที่']);
+    const brand = getVal(raw, ['brand', 'Brand', 'maker', 'ยี่ห้อ']);
+    const category = getVal(raw, ['category', 'Category', 'cat', 'group', 'หมวด', 'หมวดหมู่', 'ประเภท']);
+
     return {
         id: raw.id,
-        // Ensure we catch 'name_en' or fallback to 'name' if API sends legacy format
-        name: raw.name_en || (raw as any).name || '', 
-        nameTh: raw.name_th || '',
-        stockQuantity: Number(raw.stock_quantity) || 0,
-        minStockLevel: Number(raw.min_stock_level) || 0,
-        unitPrice: raw.unit_price ? Number(raw.unit_price) : 0,
-        // Prevent undefined/null which causes controlled input issues
-        location: raw.location || '', 
-        brand: raw.brand || '',
-        category: raw.category || ''
+        name: String(name || ''), 
+        nameTh: String(nameTh || ''),
+        stockQuantity: Number(stock) || 0,
+        minStockLevel: Number(min) || 0,
+        unitPrice: price ? Number(price) : 0,
+        location: String(location || ''),
+        brand: String(brand || ''),
+        category: String(category || '')
     };
 };
 
@@ -420,17 +456,17 @@ export const deleteWorkOrder = async (id: string): Promise<boolean> => {
 
 export const createPart = async (part: InventoryPart): Promise<boolean> => {
     try {
-        // Match backend expected payload
+        // FIXED: Use CamelCase keys to match backend expectations
         const payload = {
             action: 'createPart',
             payload: { 
                 part: {
-                   id: part.id.startsWith('PART-') ? '' : part.id, // Backend usually generates ID, but send placeholder if needed
-                   name_en: part.name,
-                   name_th: part.nameTh,
-                   stock_quantity: part.stockQuantity,
-                   min_stock_level: part.minStockLevel,
-                   unit_price: part.unitPrice,
+                   id: part.id.startsWith('PART-') ? '' : part.id, 
+                   name: part.name,
+                   nameTh: part.nameTh,
+                   stockQuantity: part.stockQuantity,
+                   minStockLevel: part.minStockLevel,
+                   unitPrice: part.unitPrice,
                    location: part.location,
                    brand: part.brand,
                    category: part.category
@@ -455,16 +491,17 @@ export const createPart = async (part: InventoryPart): Promise<boolean> => {
 
 export const updatePart = async (part: InventoryPart): Promise<boolean> => {
     try {
+        // FIXED: Use CamelCase keys to match backend expectations
         const payload = {
             action: 'updatePart',
             payload: { 
                  part: {
                    id: part.id,
-                   name_en: part.name,
-                   name_th: part.nameTh,
-                   stock_quantity: part.stockQuantity,
-                   min_stock_level: part.minStockLevel,
-                   unit_price: part.unitPrice,
+                   name: part.name,
+                   nameTh: part.nameTh,
+                   stockQuantity: part.stockQuantity,
+                   minStockLevel: part.minStockLevel,
+                   unitPrice: part.unitPrice,
                    location: part.location,
                    brand: part.brand,
                    category: part.category
