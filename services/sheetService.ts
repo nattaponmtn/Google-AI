@@ -1,6 +1,7 @@
 
 
 
+
 import { WorkOrder, Priority, Status, Asset, WorkType, WorkOrderTask, WorkOrderPart, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, InventoryPart, Tool, ToolCheckout, UserProfile } from "../types";
 import { RawAsset, RawWorkOrder, RawCompany, RawLocation, RawSystem, RawEquipmentType, RawPMTemplate, RawPMDetail, RawWorkOrderTask, RawPart, RawWOPart, RawTool, RawToolCheckout, RawUserProfile, RawAttachment } from "../types";
 import { SHEET_API_URL, SHEET_API_KEY } from "../constants";
@@ -166,7 +167,8 @@ const normalizePart = (raw: RawPart): InventoryPart => ({
     minStockLevel: Number(raw.min_stock_level),
     unitPrice: raw.unit_price ? Number(raw.unit_price) : 0,
     location: raw.location || '-',
-    brand: raw.brand
+    brand: raw.brand,
+    category: raw.category
 });
 
 const normalizeWOPart = (raw: RawWOPart): WorkOrderPart => ({
@@ -416,6 +418,74 @@ export const deleteWorkOrder = async (id: string): Promise<boolean> => {
         return result.status === 'success';
     } catch (error) {
         console.error("Delete failed:", error);
+        return false;
+    }
+};
+
+// --- INVENTORY ACTIONS ---
+
+export const createPart = async (part: InventoryPart): Promise<boolean> => {
+    try {
+        const payload = {
+            action: 'createPart',
+            payload: { part }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error during part creation');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Create part failed:", error);
+        return false;
+    }
+};
+
+export const updatePart = async (part: InventoryPart): Promise<boolean> => {
+    try {
+        const payload = {
+            action: 'updatePart',
+            payload: { part }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error during part update');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Update part failed:", error);
+        return false;
+    }
+};
+
+export const deletePart = async (id: string): Promise<boolean> => {
+    try {
+        const payload = {
+            action: 'deletePart',
+            payload: { id }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error during part deletion');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Delete part failed:", error);
         return false;
     }
 };
