@@ -1,5 +1,6 @@
 
 
+
 import React, { useState } from 'react';
 import { InventoryPart } from '../types';
 import { Package, Search, AlertTriangle, CheckCircle2, Plus, MapPin, DollarSign, Tag } from 'lucide-react';
@@ -15,10 +16,16 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, onUpdateSto
 
   const filteredParts = parts.filter(part => {
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = part.name.toLowerCase().includes(searchLower) || 
-                          (part.nameTh && part.nameTh.toLowerCase().includes(searchLower)) ||
-                          part.id.toLowerCase().includes(searchLower) ||
-                          (part.location && part.location.toLowerCase().includes(searchLower));
+    // Safe access to properties with fallbacks to empty string to prevent .toLowerCase() crash
+    const name = part.name || '';
+    const nameTh = part.nameTh || '';
+    const id = part.id || '';
+    const location = part.location || '';
+
+    const matchesSearch = name.toLowerCase().includes(searchLower) || 
+                          nameTh.toLowerCase().includes(searchLower) ||
+                          id.toLowerCase().includes(searchLower) ||
+                          location.toLowerCase().includes(searchLower);
 
     const matchesStock = filterLowStock ? part.stockQuantity <= part.minStockLevel : true;
     
@@ -26,7 +33,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, onUpdateSto
   });
 
   const lowStockCount = parts.filter(p => p.stockQuantity <= p.minStockLevel).length;
-  const totalValue = parts.reduce((acc, p) => acc + (p.stockQuantity * p.unitPrice), 0);
+  const totalValue = parts.reduce((acc, p) => acc + (p.stockQuantity * (p.unitPrice || 0)), 0);
 
   const handleAdjust = (part: InventoryPart) => {
       if (!onUpdateStock) return;
@@ -133,7 +140,7 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, onUpdateSto
                             <tr key={part.id} className="hover:bg-slate-50 transition-colors group">
                                 <td className="px-6 py-4">
                                     <div className="flex flex-col">
-                                        <span className="font-medium text-slate-800">{part.name}</span>
+                                        <span className="font-medium text-slate-800">{part.name || 'Unnamed Part'}</span>
                                         {part.nameTh && <span className="text-xs text-slate-500">{part.nameTh}</span>}
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-xs text-slate-400 font-mono bg-slate-100 px-1.5 rounded">{part.id}</span>
@@ -144,11 +151,11 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, onUpdateSto
                                 <td className="px-6 py-4 text-slate-600">
                                     <div className="flex items-center gap-1.5">
                                         <MapPin size={14} className="text-slate-400" />
-                                        <span>{part.location}</span>
+                                        <span>{part.location || '-'}</span>
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 font-mono text-slate-600">
-                                    ฿{part.unitPrice.toLocaleString()}
+                                    ฿{(part.unitPrice || 0).toLocaleString()}
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <div className={`font-bold text-lg ${isLow ? 'text-red-600' : 'text-slate-800'}`}>
