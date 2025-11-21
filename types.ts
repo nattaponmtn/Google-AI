@@ -81,6 +81,7 @@ export interface RawPart {
   unit_price?: number;
   location?: string;
   brand?: string;
+  category?: string;
 }
 export interface RawWOPart { id: string; work_order_id: string; part_id: string; quantity_used: number; }
 export interface RawTool { id: string; name: string; status: string; }
@@ -219,6 +220,7 @@ export interface InventoryPart {
   unitPrice: number;
   location: string;
   brand?: string;
+  category?: string;
 }
 
 export interface WorkOrderPart {
