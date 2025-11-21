@@ -71,7 +71,16 @@ export interface RawWorkOrderTask {
   id: string; work_order_id: string; description: string; is_completed: boolean;
   actual_value_text?: string; actual_value_numeric?: number; completed_at?: string;
 }
-export interface RawPart { id: string; name: string; stock_quantity: number; min_stock_level: number; }
+export interface RawPart { 
+  id: string; 
+  name: string; 
+  name_th?: string; 
+  stock_quantity: number; 
+  min_stock_level: number; 
+  unit_price?: number;
+  location?: string;
+  brand?: string;
+}
 export interface RawWOPart { id: string; work_order_id: string; part_id: string; quantity_used: number; }
 export interface RawTool { id: string; name: string; status: string; }
 export interface RawToolCheckout { id: string; tool_id: string; work_order_id: string; checked_out_by_user_id: string; checked_out_at: string; checked_in_at?: string; }
@@ -203,8 +212,12 @@ export interface WorkOrderTask {
 export interface InventoryPart {
   id: string;
   name: string;
+  nameTh?: string;
   stockQuantity: number;
   minStockLevel: number;
+  unitPrice: number;
+  location: string;
+  brand?: string;
 }
 
 export interface WorkOrderPart {
