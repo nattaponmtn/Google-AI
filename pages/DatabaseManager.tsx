@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { Company, Location, System, EquipmentType, Asset, PMTemplate, InventoryPart, Tool } from '../types';
+import { Company, Location, System, EquipmentType, Asset, PMTemplate, InventoryPart, Tool, StorageLocation } from '../types';
 import { Search, Database, Table, Filter, Download, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 
 interface DatabaseManagerProps {
@@ -13,6 +12,7 @@ interface DatabaseManagerProps {
     pmTemplates: PMTemplate[];
     parts: InventoryPart[];
     tools: Tool[];
+    storageLocations: StorageLocation[];
   };
 }
 
@@ -26,6 +26,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({ data }) => {
   const tables: { key: TableKey; label: string }[] = [
     { key: 'companies', label: 'Companies' },
     { key: 'locations', label: 'Locations' },
+    { key: 'storageLocations', label: 'Storage Locs' },
     { key: 'systems', label: 'Systems' },
     { key: 'equipmentTypes', label: 'Equip Types' },
     { key: 'assets', label: 'Assets' },
