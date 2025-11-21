@@ -74,6 +74,7 @@ export interface RawWorkOrderTask {
 export interface RawPart { 
   id: string; 
   name: string; 
+  name_en?: string; // Added to support name_en column
   name_th?: string; 
   stock_quantity: number; 
   min_stock_level: number; 
