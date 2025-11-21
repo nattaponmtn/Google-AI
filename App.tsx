@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
@@ -752,7 +754,7 @@ export const App: React.FC = () => {
                 onGenerateWorkOrder={openPMGenerationModal} 
                />;
       case 'inventory':
-        return <InventoryList parts={inventoryParts} />;
+        return <InventoryList parts={inventoryParts} onRefresh={loadData} />;
       case 'tool-crib':
         return <ToolList tools={tools} checkouts={toolCheckouts} workOrders={workOrders} />;
       case 'database-manager':
