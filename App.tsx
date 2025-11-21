@@ -1,20 +1,20 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { CreateTicket } from './pages/CreateTicket';
 import { WorkOrderCard } from './components/WorkOrderCard';
-import { CalendarView } from './components/CalendarView'; // Import new component
-// Removed AI pages import
+import { CalendarView } from './components/CalendarView'; 
 import { AssetList } from './pages/AssetList';
 import { AssetDetails } from './pages/AssetDetails';
 import { PMList } from './pages/PMList';
 import { WorkOrderDetails } from './pages/WorkOrderDetails';
 import { InventoryList } from './pages/InventoryList';
 import { ToolList } from './pages/ToolList';
-// Removed old page-level CalendarView import if it conflicts, but assuming we replaced it or using component
 import { Settings } from './pages/Settings';
 import { DatabaseManager } from './pages/DatabaseManager';
 import { LoginPage } from './pages/LoginPage';
@@ -24,7 +24,7 @@ import { PMSelectionModal } from './components/PMSelectionModal';
 import { PMGenerationModal } from './components/PMGenerationModal'; 
 import { fetchFullDatabase, createWorkOrder, updateWorkOrder } from './services/sheetService';
 import { getCurrentUser, logout } from './services/authService';
-import { WorkOrder, Asset, PMTemplate, WorkType, Status, Priority, InventoryPart, Tool, WorkOrderTask, WorkOrderPart, Company, Location, System, PMTemplateDetail, ToolCheckout, EquipmentType, UserProfile } from './types';
+import { WorkOrder, Asset, PMTemplate, WorkType, Status, Priority, InventoryPart, Tool, WorkOrderTask, WorkOrderPart, Company, Location, System, PMTemplateDetail, ToolCheckout, EquipmentType, UserProfile, StorageLocation } from './types';
 import { Plus, Menu, ScanLine, Loader2, RefreshCw, Filter, Search, RotateCcw, SlidersHorizontal, ChevronRight, Calendar, User, LayoutList, CalendarDays } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -36,6 +36,7 @@ export const App: React.FC = () => {
   // Master Data
   const [companies, setCompanies] = useState<Company[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]); // New State
   const [systems, setSystems] = useState<System[]>([]);
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -61,7 +62,7 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list'); // New View Mode State
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list'); 
   
   // --- Filters State ---
   const [statusFilter, setStatusFilter] = useState<string>('All'); 
@@ -91,6 +92,7 @@ export const App: React.FC = () => {
       if (data) {
         setCompanies(data.companies);
         setLocations(data.locations);
+        setStorageLocations(data.storageLocations); // Load Storage Locations
         setSystems(data.systems);
         setEquipmentTypes(data.equipmentTypes);
         setAssets(data.assets);
@@ -397,40 +399,34 @@ export const App: React.FC = () => {
                 onCancel={() => setCurrentPage('dashboard')} 
                />;
       case 'workorders':
-      case 'calendar': // Treat calendar page click as navigating to workorders with calendar view, but keeping 'workorders' as currentPage
+      case 'calendar': 
         const filteredWorkOrders = workOrders.filter(wo => {
-            // 1. Status Filter
             let matchesStatus = true;
             if (statusFilter === 'Open') matchesStatus = wo.status === Status.OPEN || wo.status === Status.SCHEDULED;
             else if (statusFilter === 'In Progress') matchesStatus = wo.status === Status.IN_PROGRESS || wo.status === Status.WAITING_PARTS;
             else if (statusFilter === 'Completed') matchesStatus = wo.status === Status.COMPLETED;
             
-            // 2. Work Type Filter
             let matchesType = true;
             if (workTypeFilter !== 'All') {
                 matchesType = wo.workType === workTypeFilter;
             }
 
-            // 3. Text Search (Title or WO Number)
             let matchesSearch = true;
             if (filterSearch.trim()) {
                 const term = filterSearch.toLowerCase();
                 matchesSearch = (wo.title.toLowerCase().includes(term) || wo.woNumber.toLowerCase().includes(term));
             }
 
-            // 4. Company Filter
             let matchesCompany = true;
             if (filterCompany) {
                 matchesCompany = wo.companyId === filterCompany;
             }
 
-            // 5. System Filter
             let matchesSystem = true;
             if (filterSystem) {
                 matchesSystem = wo.systemId === filterSystem;
             }
 
-            // 6. Location Filter
             let matchesLocation = true;
             if (filterLocation) {
                 matchesLocation = wo.locationId === filterLocation;
@@ -470,7 +466,6 @@ export const App: React.FC = () => {
 
         return (
             <div className="space-y-6 animate-fade-in">
-                {/* Header and Actions */}
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                     <h2 className="text-2xl font-bold text-slate-800">Work Orders</h2>
                     
@@ -485,7 +480,6 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Advanced Filters Bar */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex justify-between items-center mb-3">
                          <div className="flex items-center gap-4">
@@ -493,7 +487,6 @@ export const App: React.FC = () => {
                                 <Filter size={16} /> Filters
                              </h4>
                              
-                             {/* VIEW TOGGLE BUTTONS (List / Calendar) */}
                              <div className="flex items-center bg-slate-100 rounded-lg p-1">
                                 <button 
                                     onClick={() => setViewMode('list')}
@@ -529,7 +522,6 @@ export const App: React.FC = () => {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        {/* Search Input & Toggle Button */}
                         <div className="flex gap-2 col-span-1 md:col-span-1">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -554,7 +546,6 @@ export const App: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Status Filter */}
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
@@ -566,7 +557,6 @@ export const App: React.FC = () => {
                             <option value="Completed">Completed</option>
                         </select>
 
-                         {/* Work Type Filter */}
                          <select
                             value={workTypeFilter}
                             onChange={(e) => setWorkTypeFilter(e.target.value)}
@@ -578,7 +568,6 @@ export const App: React.FC = () => {
                             ))}
                         </select>
 
-                        {/* Company Filter */}
                         <select
                             value={filterCompany}
                             onChange={(e) => { setFilterCompany(e.target.value); setFilterLocation(''); setFilterSystem(''); }}
@@ -590,7 +579,6 @@ export const App: React.FC = () => {
                             ))}
                         </select>
                         
-                         {/* Location Filter (Dependent) */}
                          {filterCompany && (
                             <select
                                 value={filterLocation}
@@ -604,7 +592,6 @@ export const App: React.FC = () => {
                             </select>
                         )}
 
-                         {/* System Filter (Dependent) */}
                          {filterCompany && (
                             <select
                                 value={filterSystem}
@@ -620,10 +607,8 @@ export const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* CONDITIONAL RENDERING BASED ON VIEW MODE */}
                 {viewMode === 'list' ? (
                     <>
-                        {/* DESKTOP VIEW: TABLE */}
                         <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                              <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
@@ -701,7 +686,6 @@ export const App: React.FC = () => {
                              )}
                         </div>
 
-                        {/* MOBILE VIEW: CARDS */}
                         <div className="grid grid-cols-1 gap-4 md:hidden">
                             {filteredWorkOrders.map((wo) => (
                                 <WorkOrderCard 
@@ -728,7 +712,6 @@ export const App: React.FC = () => {
                         </div>
                     </>
                 ) : (
-                    /* CALENDAR VIEW */
                     <CalendarView 
                         workOrders={filteredWorkOrders}
                         onSelectWorkOrder={(id) => setSelectedWorkOrderId(id)}
@@ -741,7 +724,7 @@ export const App: React.FC = () => {
                 assets={assets} 
                 systems={systems} 
                 locations={locations} 
-                selectedCompanyId={filterCompany || 'all'} // Reuse filter logic
+                selectedCompanyId={filterCompany || 'all'} 
                 onSelectAsset={(id) => { setSelectedAssetId(id); }} 
                />;
       case 'pm-plans':
@@ -754,11 +737,15 @@ export const App: React.FC = () => {
                 onGenerateWorkOrder={openPMGenerationModal} 
                />;
       case 'inventory':
-        return <InventoryList parts={inventoryParts} onRefresh={loadData} />;
+        return <InventoryList 
+                  parts={inventoryParts} 
+                  storageLocations={storageLocations}
+                  onRefresh={loadData} 
+               />;
       case 'tool-crib':
         return <ToolList tools={tools} checkouts={toolCheckouts} workOrders={workOrders} />;
       case 'database-manager':
-        return <DatabaseManager data={{ companies, locations, systems, equipmentTypes, assets, pmTemplates, parts: inventoryParts, tools }} />;
+        return <DatabaseManager data={{ companies, locations, systems, equipmentTypes, assets, pmTemplates, parts: inventoryParts, tools, storageLocations }} />;
       case 'settings':
         return <Settings 
                     currentUser={{ name: currentUser?.fullName || 'User', role: currentUser?.role || 'Viewer', avatar: "https://ui-avatars.com/api/?name=User&background=random" }} 
@@ -771,17 +758,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
-        {/* Sidebar (Desktop) */}
         <Sidebar 
             currentPage={currentPage} 
             onNavigate={(page) => {
-                // If navigating to calendar menu item, set page to workorders and view to calendar
                 if (page === 'calendar') {
                     setCurrentPage('workorders');
                     setViewMode('calendar');
                 } else {
                     setCurrentPage(page);
-                    // Default to list if navigating back to workorders from elsewhere
                     if (page === 'workorders') setViewMode('list');
                 }
                 setIsSidebarOpen(false);
@@ -792,10 +776,8 @@ export const App: React.FC = () => {
             onClose={() => setIsSidebarOpen(false)}
         />
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden relative md:ml-64 transition-all duration-300">
             
-            {/* Mobile Header */}
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center md:hidden z-30">
                 <div className="flex items-center gap-3">
                     <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600">
@@ -816,12 +798,12 @@ export const App: React.FC = () => {
                 </div>
             </header>
 
-            {/* Desktop Header (Optional/Minimal) */}
             <header className="hidden md:flex bg-white border-b border-slate-200 px-8 py-4 justify-between items-center">
                 <h1 className="text-xl font-bold text-slate-800 capitalize">
                     {currentPage === 'dashboard' ? 'Dashboard' : 
                      currentPage === 'workorders' ? 'Work Orders' :
                      currentPage === 'assets' ? 'Asset Registry' :
+                     currentPage === 'inventory' ? 'Inventory Management' :
                      currentPage.replace('-', ' ')}
                 </h1>
                 <div className="flex items-center gap-4">
@@ -846,14 +828,12 @@ export const App: React.FC = () => {
                 </div>
             </header>
 
-            {/* Scrollable Content */}
             <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-slate-50 scroll-smooth">
                 <div className="max-w-7xl mx-auto">
                      {renderContent()}
                 </div>
             </main>
 
-            {/* Mobile Navigation Bar */}
             <MobileNav activeTab={currentPage} onNavigate={(page) => {
                 if (page === 'qr-scan') setIsQRScannerOpen(true);
                 else setCurrentPage(page);
@@ -861,7 +841,6 @@ export const App: React.FC = () => {
 
         </div>
 
-        {/* Modals & Overlays */}
         <QRScanner 
             isOpen={isQRScannerOpen} 
             onClose={() => setIsQRScannerOpen(false)} 
