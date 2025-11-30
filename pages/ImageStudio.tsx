@@ -25,11 +25,13 @@ export const ImageStudio: React.FC = () => {
 
     setIsProcessing(true);
     try {
+      const mimeType = originalImage.split(';')[0].split(':')[1];
       const base64Data = originalImage.split(',')[1];
-      const resultBase64 = await editMaintenanceImage(base64Data, prompt);
-      // Assuming PNG result
+      const resultBase64 = await editMaintenanceImage(base64Data, mimeType, prompt);
+      // Assuming result is compatible with PNG for display
       setGeneratedImage(`data:image/png;base64,${resultBase64}`);
     } catch (error) {
+      console.error("Image edit failed", error);
       alert("Failed to edit image. Please try again.");
     } finally {
       setIsProcessing(false);

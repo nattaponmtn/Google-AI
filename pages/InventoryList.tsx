@@ -354,67 +354,58 @@ export const InventoryList: React.FC<InventoryListProps> = ({ parts, storageLoca
               </table>
           </div>
 
-          {/* MOBILE VIEW: Card List */}
-          <div className="md:hidden bg-slate-50">
-              <div className="flex flex-col divide-y divide-slate-100">
+          {/* MOBILE VIEW: Card List - Clean Design */}
+          <div className="md:hidden bg-slate-50 p-4 space-y-3">
                 {filteredParts.map((part) => {
                    const isLow = part.stockQuantity <= part.minStockLevel;
                    return (
-                     <div key={part.id} className="bg-white p-4 flex flex-col gap-3">
-                        {/* Header: Name & Status */}
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1 pr-2">
-                                <h3 className="font-bold text-slate-800 text-base leading-tight mb-0.5">{part.nameTh || part.name}</h3>
+                     <div key={part.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative overflow-hidden">
+                        {isLow && <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-bl-full" />}
+                        
+                        <div className="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 className="font-bold text-slate-800 text-base">{part.nameTh || part.name}</h3>
                                 <p className="text-xs text-slate-500">{part.name}</p>
                             </div>
-                            <div className={`flex flex-col items-end shrink-0 px-2 py-1 rounded ${isLow ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
-                                <span className="text-lg font-bold leading-none">{part.stockQuantity}</span>
-                                <span className="text-[10px] font-medium opacity-80">Min: {part.minStockLevel}</span>
+                            <div className="text-right">
+                                <p className={`text-xl font-bold leading-none ${isLow ? 'text-red-600' : 'text-slate-800'}`}>{part.stockQuantity}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">Min: {part.minStockLevel}</p>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                             <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{part.id}</span>
-                             {part.brand && <span className="text-[10px] text-blue-600 border border-blue-100 bg-blue-50 px-1.5 py-0.5 rounded-full">{part.brand}</span>}
-                             {part.category && <span className="text-[10px] text-slate-600 border border-slate-200 bg-slate-50 px-1.5 py-0.5 rounded-full">{part.category}</span>}
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                             <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-mono">{part.id}</span>
+                             <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100">{part.location || 'No Loc'}</span>
+                             {part.brand && <span className="text-[10px] px-1.5 py-0.5 border border-slate-200 text-slate-500 rounded">{part.brand}</span>}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 py-2 border-t border-slate-50 mt-1">
-                            <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                                <MapPin size={14} className="text-slate-400" />
-                                <span className="truncate">{part.location || '-'}</span>
-                            </div>
-                            <div className="flex items-center justify-end gap-1.5 text-sm text-slate-800 font-mono font-medium">
-                                ฿{(part.unitPrice || 0).toLocaleString()}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-2 mt-1">
-                             <button 
-                                onClick={() => handleEdit(part)}
-                                className="col-span-3 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg font-medium text-sm transition-colors"
-                             >
-                                <Pencil size={16} /> แก้ไขข้อมูล
-                             </button>
-                             <button 
-                                onClick={() => handleDelete(part.id)}
-                                className="col-span-1 flex items-center justify-center py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
-                             >
-                                <Trash2 size={16} />
-                             </button>
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                             <p className="text-sm font-medium text-slate-700">฿{(part.unitPrice || 0).toLocaleString()}</p>
+                             <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleEdit(part)}
+                                    className="p-1.5 bg-slate-50 text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
+                                >
+                                    <Pencil size={16} />
+                                </button>
+                                <button 
+                                    onClick={() => handleDelete(part.id)}
+                                    className="p-1.5 bg-slate-50 text-slate-500 hover:text-red-600 rounded-lg transition-colors"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                             </div>
                         </div>
                      </div>
                    );
                 })}
-              </div>
+                {filteredParts.length === 0 && (
+                    <div className="text-center text-slate-400 py-10">
+                        <Package size={40} className="mx-auto mb-2 opacity-30" />
+                        <p>No items found.</p>
+                    </div>
+                )}
           </div>
-
-          {filteredParts.length === 0 && (
-              <div className="p-12 text-center text-slate-400 flex flex-col items-center bg-white">
-                  <Package size={48} className="mb-3 opacity-20" />
-                  <p>ไม่พบรายการที่ค้นหา (No parts found)</p>
-              </div>
-          )}
       </div>
 
       {/* PART MODAL - FULL SCREEN ON MOBILE, CENTERED ON DESKTOP */}

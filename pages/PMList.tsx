@@ -245,7 +245,7 @@ export const PMList: React.FC<PMListProps> = ({
                                         {pm.frequencyValue} {pm.frequencyType.toUpperCase()}
                                     </span>
                                 </div>
-                                <h3 className="font-semibold text-slate-800 text-lg group-hover:text-blue-700 transition-colors">
+                                <h3 className="font-bold text-slate-800 text-sm md:text-base group-hover:text-blue-700 transition-colors">
                                     {pm.name}
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-1 line-clamp-1 flex items-center gap-1">

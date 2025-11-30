@@ -2,30 +2,46 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchCSVData, CSVRow } from '../services/csvService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Loader2, FileSpreadsheet, Filter, RefreshCw, Calendar, PieChart as PieIcon, Table as TableIcon, AlertCircle, Plus, Trash2, Link as LinkIcon, Save, X, AlertTriangle, CheckCircle2, ListX } from 'lucide-react';
+import { Loader2, FileSpreadsheet, Filter, RefreshCw, Calendar, PieChart as PieIcon, Table as TableIcon, AlertCircle, Plus, Trash2, Link as LinkIcon, Save, X, AlertTriangle, CheckCircle2, ListX, MessageSquare } from 'lucide-react';
 
 interface SheetConfig {
-    id: string;
-    name: string;
-    url: string;
+    id: string;   // ต้องไม่ซ้ำกัน (Unique ID)
+    name: string; // ชื่อที่แสดงในปุ่มเลือก (Display Name)
+    url: string;  // ลิ้งค์ CSV (Published to Web)
 }
 
 const COLORS_STATUS = ['#10b981', '#ef4444', '#f59e0b', '#64748b']; // Green, Red, Amber, Slate
 
-// CORRECT URL: Must be "Published to Web" (pub?output=csv) to avoid CORS errors
-const CORRECT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSPZCqpL2rlM0RNSH5cFm2IK_yCNdSqgPYKvjWQ1gS4okor_r3Rcceancu9PBpoEjz1l5EtYDwgPq1n/pub?output=csv";
-
+// ตั้งค่าลิ้งค์ Google Sheets ที่นี่
 const DEFAULT_SHEETS: SheetConfig[] = [
     {
-        id: 'user-sheet-1',
-        name: 'Daily Machine Check',
-        url: CORRECT_URL
+        id: 'sa-farm-main', // ID ตั้งเองได้เลย ไม่ต้องเรียงเลข ขอแค่ไม่ซ้ำ
+        name: 'Check Sheet S.A. Farm', // ชื่อที่แสดง
+        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQvrflx0J__KTa3IcaYWFQ4Ml_lWZGKLj67blsfxyTTZGsQJx8UF5qu41C2_clPseyoR2i8UZvMaNtu/pub?output=csv"
+    },
+    {
+        id: 'ctc-site-2', 
+        name: 'Check Sheet 2 CTC',
+        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSPZCqpL2rlM0RNSH5cFm2IK_yCNdSqgPYKvjWQ1gS4okor_r3Rcceancu9PBpoEjz1l5EtYDwgPq1n/pub?output=csv"
     }
 ];
 
 // Keywords to detect status columns based on row content
 const BAD_KEYWORDS = ['ผิดปกติ', 'abnormal', 'fail', 'not ok', 'เสีย', 'ชำรุด', 'ไม่ผ่าน', 'no', 'bad', 'leak', 'damage', 'พบความผิดปกติ'];
 const GOOD_KEYWORDS = ['ปกติ', 'normal', 'pass', 'ok', 'ผ่าน', 'yes', 'good', 'ปกติทั้งหมด'];
+
+// Columns to exclude from the "Abnormal/Normal" charts
+const EXCLUDED_FROM_CHARTS = [
+    'สรุปผลการตรวจสอบ', 
+    'หมายเหตุเพิ่มเติม', 
+    'ข้อเสนอแนะ', 
+    'รายละเอียดการตั้งค่า', 
+    'Dashboard', 
+    'Timestamp', 
+    'Email Address',
+    'ระบุเวลา',
+    'รายละเอียด'
+];
 
 export const FormAnalytics: React.FC = () => {
   // --- STATE: Data Sources ---
@@ -34,15 +50,18 @@ export const FormAnalytics: React.FC = () => {
           const saved = localStorage.getItem('nexgen_form_sources');
           if (saved) {
               const parsed = JSON.parse(saved);
-              // AUTO-FIX: If we find the old broken URL in storage, replace it with the working one
+              // Merge Logic: Ensure all DEFAULT_SHEETS are present
+              const merged = [...DEFAULT_SHEETS];
+              
               if (Array.isArray(parsed)) {
-                  return parsed.map((s: SheetConfig) => {
-                      if (s.url && s.url.includes('/export?format=csv')) {
-                          return { ...s, url: CORRECT_URL };
+                  // Add custom user sheets that are NOT in defaults (by URL)
+                  parsed.forEach((p: SheetConfig) => {
+                      if (!DEFAULT_SHEETS.some(d => d.url === p.url)) {
+                          merged.push(p);
                       }
-                      return s;
                   });
               }
+              return merged;
           }
       } catch (e) {
           console.error("Failed to load saved sheets", e);
@@ -50,7 +69,8 @@ export const FormAnalytics: React.FC = () => {
       return DEFAULT_SHEETS;
   });
 
-  const [activeSheetId, setActiveSheetId] = useState<string>(sheets[0]?.id || '');
+  // Ensure active sheet defaults to the first available one
+  const [activeSheetId, setActiveSheetId] = useState<string>(sheets[0]?.id || DEFAULT_SHEETS[0].id);
   const [isManageMode, setIsManageMode] = useState(false);
 
   // --- STATE: New Sheet Input ---
@@ -69,15 +89,16 @@ export const FormAnalytics: React.FC = () => {
       localStorage.setItem('nexgen_form_sources', JSON.stringify(sheets));
   }, [sheets]);
 
-  const activeSheet = sheets.find(s => s.id === activeSheetId);
+  const activeSheet = sheets.find(s => s.id === activeSheetId) || DEFAULT_SHEETS[0];
 
   const loadData = async () => {
-    if (!activeSheet) return;
+    // If somehow activeSheet is missing, fallback to first default
+    const targetUrl = activeSheet ? activeSheet.url : DEFAULT_SHEETS[0].url;
     
     setLoading(true);
     setError('');
     try {
-      const result = await fetchCSVData(activeSheet.url);
+      const result = await fetchCSVData(targetUrl);
       if (result.length === 0) throw new Error("No data found. Check the URL or permissions.");
       
       // Auto-detect timestamp column for sorting
@@ -101,7 +122,11 @@ export const FormAnalytics: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
+    if (activeSheetId) {
+        loadData();
+    } else {
+        setData([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheetId]);
 
@@ -122,14 +147,26 @@ export const FormAnalytics: React.FC = () => {
   };
 
   const handleDeleteSheet = (id: string) => {
-      if (sheets.length <= 1) {
-          alert("Keep at least one source.");
+      // Check if it's a default sheet
+      if (DEFAULT_SHEETS.some(d => d.id === id)) {
+          alert("Cannot delete default system sheets.");
           return;
       }
+
       if (window.confirm("Remove this source?")) {
+          // Prevent deleting the last sheet if it's the only one
+          if (sheets.length <= 1) {
+              alert("Cannot delete the last source.");
+              return;
+          }
+          
           const newSheets = sheets.filter(s => s.id !== id);
           setSheets(newSheets);
-          if (activeSheetId === id) setActiveSheetId(newSheets[0].id);
+          
+          // Switch active to another available sheet
+          if (activeSheetId === id) {
+              setActiveSheetId(newSheets[0].id);
+          }
       }
   };
 
@@ -146,15 +183,19 @@ export const FormAnalytics: React.FC = () => {
     // Looking for columns where the content contains keywords like "Normal" or "Abnormal"
     const statusCols = headers.filter(h => {
         if (h === timeCol) return false;
+        
+        // EXCLUSION: Skip columns meant for remarks/summaries from the chart
+        if (EXCLUDED_FROM_CHARTS.some(ex => h.includes(ex))) return false;
+
         // Check first 50 rows (increased sample size) to guess column type
         const sample = data.slice(0, 50).map(r => String(r[h]).toLowerCase());
         return sample.some(v => BAD_KEYWORDS.some(k => v.includes(k)) || GOOD_KEYWORDS.some(k => v.includes(k)));
     });
 
-    // If no specific status columns found, fallback to reasonable columns
-    const targetCols = statusCols.length > 0 ? statusCols : headers.filter(h => h !== timeCol);
+    // If no specific status columns found, fallback to reasonable columns (excluding known non-chart cols)
+    const targetCols = statusCols.length > 0 ? statusCols : headers.filter(h => h !== timeCol && !EXCLUDED_FROM_CHARTS.some(ex => h.includes(ex)));
 
-    // 3. Process Rows
+    // 3. Process Rows for Charts
     let totalChecks = 0;
     let totalNormal = 0;
     let totalAbnormal = 0;
@@ -216,7 +257,30 @@ export const FormAnalytics: React.FC = () => {
         });
     });
 
-    // 4. Prepare Chart Data
+    // 4. Extract Recent Activity (Raw Data from Excluded Columns)
+    // Find columns that are in the EXCLUDED list but are not timestamp/email
+    const remarkCols = headers.filter(h => 
+        h !== timeCol && 
+        EXCLUDED_FROM_CHARTS.some(ex => h.includes(ex)) &&
+        !h.toLowerCase().includes('timestamp') &&
+        !h.toLowerCase().includes('date') &&
+        !h.toLowerCase().includes('email')
+    );
+
+    const recentActivity = data.slice(0, 5).map((row, idx) => {
+        const notes = remarkCols.map(col => ({
+            key: col,
+            value: String(row[col] || '')
+        })).filter(n => n.value && n.value !== '-' && n.value.toLowerCase() !== 'ok' && n.value.toLowerCase() !== 'normal' && n.value.toLowerCase() !== 'nan');
+        
+        return {
+            rowIdx: idx,
+            timestamp: timeCol ? String(row[timeCol]) : `Row ${idx+1}`,
+            notes
+        };
+    }).filter(item => item.notes.length > 0);
+
+    // 5. Prepare Chart Data
     const overallStatus = [
         { name: 'Normal (ปกติ)', value: totalNormal },
         { name: 'Abnormal (ผิดปกติ)', value: totalAbnormal },
@@ -239,7 +303,8 @@ export const FormAnalytics: React.FC = () => {
         overallStatus,
         issuesByPointData,
         trendData,
-        issuesList
+        issuesList,
+        recentActivity
     };
   }, [data]);
 
@@ -274,7 +339,7 @@ export const FormAnalytics: React.FC = () => {
                                 setActiveSheetId(e.target.value);
                             }
                         }}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none shadow-sm cursor-pointer"
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none shadow-sm cursor-pointer truncate"
                     >
                         {sheets.map(s => (
                             <option key={s.id} value={s.id}>{s.name}</option>
@@ -293,7 +358,7 @@ export const FormAnalytics: React.FC = () => {
                 
                 <button 
                     onClick={loadData}
-                    disabled={loading}
+                    disabled={loading || !activeSheetId}
                     className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100"
                     title="Refresh Data"
                 >
@@ -339,13 +404,15 @@ export const FormAnalytics: React.FC = () => {
                 </form>
 
                 <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {sheets.length === 0 && <p className="text-sm text-slate-400 italic">No sources added yet.</p>}
                     {sheets.map(s => (
                         <div key={s.id} className="flex justify-between items-center bg-white p-2 px-3 rounded border border-slate-200">
                             <div className="truncate flex-1">
                                 <span className="font-medium text-sm text-slate-700">{s.name}</span>
+                                {DEFAULT_SHEETS.some(d => d.id === s.id) && <span className="ml-2 text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">SYSTEM</span>}
                                 <p className="text-[10px] text-slate-400 font-mono truncate">{s.url}</p>
                             </div>
-                            {sheets.length > 1 && (
+                            {!DEFAULT_SHEETS.some(d => d.id === s.id) && (
                                 <button onClick={() => handleDeleteSheet(s.id)} className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded">
                                     <Trash2 size={14} />
                                 </button>
@@ -481,6 +548,34 @@ export const FormAnalytics: React.FC = () => {
                                 <p className="text-xs text-slate-400">Based on all checklist items</p>
                             </div>
                         </div>
+
+                        {/* Recent Remarks (New Section) */}
+                        {analytics.recentActivity.length > 0 && (
+                             <div className="lg:col-span-3 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <MessageSquare size={20} className="text-slate-500" />
+                                    Recent Notes & Remarks (หมายเหตุล่าสุด)
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {analytics.recentActivity.map((item, i) => (
+                                        <div key={i} className="p-4 bg-slate-50 rounded-lg border border-slate-100 text-sm">
+                                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-200">
+                                                <Calendar size={14} className="text-slate-400" />
+                                                <span className="font-mono text-slate-500 text-xs">{item.timestamp}</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {item.notes.map((note, nIdx) => (
+                                                    <div key={nIdx}>
+                                                        <p className="text-xs font-bold text-slate-500 uppercase mb-0.5">{note.key}</p>
+                                                        <p className="text-slate-800">{note.value}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                             </div>
+                        )}
                     </div>
                 </div>
             )}

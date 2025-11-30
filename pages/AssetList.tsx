@@ -88,27 +88,28 @@ export const AssetList: React.FC<AssetListProps> = ({
       <div 
          key={asset.id} 
          onClick={() => onSelectAsset(asset.id)}
-         className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group flex flex-col cursor-pointer active:scale-[0.98] h-full"
+         className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_24px_rgba(0,0,0,0.1)] transition-all group flex flex-col cursor-pointer active:scale-[0.98] h-full"
       >
-        <div className="h-40 bg-slate-100 relative overflow-hidden">
+        <div className="h-48 bg-slate-100 relative overflow-hidden">
           <img 
             src={asset.imageUrl || `https://placehold.co/400x300?text=${asset.name}`} 
             alt={asset.name} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
           />
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-black/50 to-transparent opacity-60"></div>
+          {/* Deep Gradient for text contrast */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent" />
           
-          <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm backdrop-blur-md ${
+          <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm backdrop-blur-md border border-white/10 ${
             asset.status === 'Active' 
               ? 'bg-emerald-500/90 text-white' 
-              : 'bg-red-500/90 text-white'
+              : 'bg-rose-500/90 text-white'
           }`}>
             {asset.status}
           </div>
           
-          <div className="absolute bottom-3 left-3 text-white">
-             <p className="text-xs font-mono bg-black/40 px-1.5 py-0.5 rounded inline-block mb-1">{asset.assetTag}</p>
-             <h3 className="font-bold text-sm leading-tight line-clamp-2 text-shadow">{asset.name}</h3>
+          <div className="absolute bottom-4 left-4 right-4 text-white">
+             <p className="text-[10px] font-mono bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-white/90 inline-block mb-2 border border-white/10">{asset.assetTag}</p>
+             <h3 className="font-bold text-base md:text-lg leading-tight line-clamp-2 drop-shadow-sm">{asset.name}</h3>
           </div>
         </div>
         
@@ -130,17 +131,17 @@ export const AssetList: React.FC<AssetListProps> = ({
             </div>
           </div>
 
-          <div className="mt-auto pt-3 border-t border-slate-100 flex justify-between items-center">
-            <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${
+          <div className="mt-auto pt-4 border-t border-slate-50 flex justify-between items-center">
+            <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                <div className={`w-1.5 h-1.5 rounded-full ${
                     asset.condition === 'Good' ? 'bg-emerald-500' : 
-                    asset.condition === 'Fair' ? 'bg-yellow-500' : 'bg-red-500'
+                    asset.condition === 'Fair' ? 'bg-amber-500' : 'bg-rose-500'
                 }`}></div>
-                <span className="text-xs text-slate-500">{asset.condition}</span>
+                <span className="text-[10px] font-medium text-slate-600">{asset.condition}</span>
             </div>
-            <span className="text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform flex items-center">
-                Details <ChevronRight size={12} />
-            </span>
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-sm">
+                <ChevronRight size={16} />
+            </div>
           </div>
         </div>
       </div>

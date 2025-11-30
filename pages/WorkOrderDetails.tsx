@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { WorkOrder, WorkOrderTask, Asset, Company, Status, WorkOrderPart, InventoryPart, Tool, PMTemplateDetail, Location, Priority, WorkType, System, EquipmentType, UserProfile } from '../types';
 import { ArrowLeft, MapPin, CheckCircle2, Wrench, Package, Save, Plus, Trash2, Loader2, Image as ImageIcon, AlertCircle, Minus, AlertTriangle, Building2, Settings, Tag, Upload, X, Calendar, User, Clock } from 'lucide-react';
 import { updateWorkOrder, deleteWorkOrder, uploadImageToDrive } from '../services/sheetService';
+import { ToastType } from '../components/Toast';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
@@ -22,6 +23,7 @@ interface WorkOrderDetailsProps {
   onSave: (wo: WorkOrder, tasks: WorkOrderTask[], parts: WorkOrderPart[]) => void;
   onBack: () => void;
   onDelete?: (id: string) => void;
+  onShowToast?: (title: string, message: string, type: ToastType) => void;
 }
 
 export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({ 
@@ -41,7 +43,8 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
     users = [],
     onSave, 
     onBack,
-    onDelete
+    onDelete,
+    onShowToast
 }) => {
   const [currentTitle, setCurrentTitle] = useState<string>(workOrder.title);
   const [currentStatus, setCurrentStatus] = useState<string>(workOrder.status);
@@ -107,6 +110,11 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
           setCurrentCompletedAt(localNow);
       }
   }, [currentStatus]);
+
+  const triggerToast = (title: string, msg: string, type: ToastType) => {
+      if (onShowToast) onShowToast(title, msg, type);
+      else alert(`${title}: ${msg}`);
+  };
 
   const getPriorityLabel = (p: string) => {
       switch(p) {
@@ -198,7 +206,7 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       if (!partInfo) return;
 
       if (partInfo.stockQuantity < 1) {
-          alert(`Item "${partInfo.name}" is out of stock!`);
+          triggerToast("Stock Error", `Item "${partInfo.name}" is out of stock!`, "error");
           return;
       }
       
@@ -234,7 +242,7 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
   const handleSave = async () => {
     if (isAnyStockError) {
-        alert("Cannot save: One or more parts exceed available stock.");
+        triggerToast("Inventory Error", "Cannot save: One or more parts exceed available stock.", "error");
         return;
     }
 
@@ -279,7 +287,7 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
         }
     } catch (e: any) {
         console.error("Save failed", e);
-        alert(e.message || "An error occurred while saving.");
+        triggerToast("Save Failed", e.message || "An error occurred while saving.", "error");
     } finally {
         setIsSaving(false);
     }
@@ -299,11 +307,11 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
               onDelete(workOrder.id);
               onBack();
           } else {
-              alert("Failed to delete. Check server logs.");
+              triggerToast("Delete Failed", "Server error. Check logs.", "error");
               setDeleteConfirm(false);
           }
       } catch (e) {
-          alert("Error deleting work order.");
+          triggerToast("Delete Failed", "Network error.", "error");
           setDeleteConfirm(false);
       } finally {
           setIsDeleting(false);
@@ -321,8 +329,9 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
           const uploadedUrl = await uploadImageToDrive(base64String, fileName, workOrder.id);
           if (uploadedUrl) {
               setCurrentImages(prev => [...prev, uploadedUrl]);
+              triggerToast("Image Uploaded", "Photo added successfully", "success");
           } else {
-              alert("Failed to upload image.");
+              triggerToast("Upload Failed", "Could not upload image", "error");
           }
           setIsUploading(false);
       };
@@ -338,7 +347,8 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   return (
     <div className="space-y-6 animate-fade-in pb-32 md:pb-10 relative">
       <div className="flex items-center gap-4">
-        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+        {/* Changed: Hidden on mobile (hidden), shown on desktop (md:block) */}
+        <button onClick={onBack} className="hidden md:block p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
           <ArrowLeft size={24} />
         </button>
         <div className="flex-1">
@@ -389,14 +399,14 @@ export const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     <button 
                         onClick={handleDelete}
                         disabled={isDeleting || isSaving}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all font-medium border ${
+                        className={`flex items-center justify-center p-2.5 rounded-lg transition-all font-medium border ${
                             deleteConfirm 
                                 ? 'bg-red-600 text-white border-red-700 hover:bg-red-700 shadow-md animate-pulse' 
                                 : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
                         }`}
                         title="Delete Ticket"
                     >
-                         {isDeleting ? <Loader2 className="animate-spin" size={18} /> : deleteConfirm ? <><AlertTriangle size={18} /><span>Confirm?</span></> : <Trash2 size={18} />}
+                         {isDeleting ? <Loader2 className="animate-spin" size={20} /> : deleteConfirm ? <><AlertTriangle size={20} /><span className="ml-2">Confirm?</span></> : <Trash2 size={20} />}
                     </button>
                 )}
             </div>
