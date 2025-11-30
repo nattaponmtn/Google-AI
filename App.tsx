@@ -12,16 +12,19 @@ import { PMList } from './pages/PMList';
 import { InventoryList } from './pages/InventoryList';
 import { ToolList } from './pages/ToolList';
 import { DatabaseManager } from './pages/DatabaseManager';
-import { FormAnalytics } from './pages/FormAnalytics'; // Import new page
+import { FormAnalytics } from './pages/FormAnalytics';
+import { CalendarView } from './pages/CalendarView';
 import { LoginPage } from './pages/LoginPage';
 import { Settings } from './pages/Settings';
 import { QRScanner } from './components/QRScanner';
 import { WorkOrderCard } from './components/WorkOrderCard';
 import { PMSelectionModal } from './components/PMSelectionModal';
+import { ToastContainer, ToastMessage, ToastType } from './components/Toast';
 import { fetchFullDatabase, createWorkOrder, updateWorkOrder } from './services/sheetService';
 import { getCurrentUser, logout } from './services/authService';
 import { WorkOrder, Asset, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, WorkOrderTask, InventoryPart, WorkOrderPart, Tool, ToolCheckout, UserProfile, StorageLocation, Priority, Status, WorkType } from './types';
-import { Loader2, Plus, Filter, Search, ChevronRight, ScanLine } from 'lucide-react';
+import { Loader2, Plus, Filter, Search, ChevronRight, ScanLine, PenTool } from 'lucide-react';
+import { SmartAssistant } from './pages/SmartAssistant';
 
 export const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -29,6 +32,7 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // --- DATA STATE ---
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
@@ -57,11 +61,21 @@ export const App: React.FC = () => {
 
   // --- PM SCAN STATE ---
   const [scannedAsset, setScannedAsset] = useState<Asset | null>(null);
-  const [scannedPMCode, setScannedPMCode] = useState<string>(''); // For PM Scan logic
-  const [scannedFilters, setScannedFilters] = useState<{ companyId?: string; locationId?: string }>({}); // Store filters from scanner
+  const [scannedPMCode, setScannedPMCode] = useState<string>('');
+  const [scannedFilters, setScannedFilters] = useState<{ companyId?: string; locationId?: string }>({}); 
   const [showPMModal, setShowPMModal] = useState(false);
   const [matchedPMTemplates, setMatchedPMTemplates] = useState<PMTemplate[]>([]);
   const [isProcessingPM, setIsProcessingPM] = useState(false);
+
+  // --- NOTIFICATION HANDLER ---
+  const showToast = (title: string, message: string, type: ToastType = 'info') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, title, message, type }]);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -86,6 +100,7 @@ export const App: React.FC = () => {
       }
     } catch (error) {
       console.error("Sync error:", error);
+      showToast("Sync Failed", "Could not fetch latest data.", "error");
     } finally {
       setIsLoading(false);
       setIsSyncing(false);
@@ -125,6 +140,7 @@ export const App: React.FC = () => {
 
   const handleManualSync = async () => {
       await loadData();
+      showToast("Synced", "Data refreshed successfully", "success");
   };
   
   const handleNavigate = (page: string) => {
@@ -132,10 +148,12 @@ export const App: React.FC = () => {
       setIsScanning(true);
       return;
     }
+    // Reset selection states when navigating top-level
     setSelectedAssetId(null);
     setSelectedGroup(null);
     setSelectedWorkOrderId(null);
     setIsCreatingTicket(false);
+    
     setCurrentPage(page);
     setIsSidebarOpen(false);
   };
@@ -159,6 +177,7 @@ export const App: React.FC = () => {
       setSelectedWorkOrderId(foundWO.id);
       setCurrentPage('workorders');
       setIsScanning(false);
+      showToast("Found Work Order", `Opened ${foundWO.woNumber}`, "success");
       return;
     }
 
@@ -222,12 +241,12 @@ export const App: React.FC = () => {
         setSelectedAssetId(foundAsset.id);
         setCurrentPage('assets');
         setIsScanning(false);
+        showToast("Asset Found", `Opened ${foundAsset.name}`, "success");
       }
       return;
     }
     
-    // IF NO MATCH, DO NOT CLOSE SCANNER. JUST ALERT.
-    alert(`ไม่พบข้อมูลสำหรับ: '${cleanCode}' ในขอบเขตที่เลือก`);
+    showToast("Not Found", `No matching data for: ${cleanCode}`, "error");
   };
 
   const handlePMSelectionConfirm = async (selectedIds: string[]) => {
@@ -304,6 +323,8 @@ export const App: React.FC = () => {
         setTasks(prev => [...prev, ...newTasksAccumulator]);
         setShowPMModal(false);
         
+        showToast("PM Generated", `Created ${newWOs.length} work orders successfully`, "success");
+
         if (targetAsset) {
              setSelectedAssetId(targetAsset.id);
              setCurrentPage('assets');
@@ -313,7 +334,7 @@ export const App: React.FC = () => {
 
     } catch (e) {
         console.error(e);
-        alert("Error creating PM Work Orders. Please check connection.");
+        showToast("Error", "Failed to create PM Work Orders", "error");
     } finally {
         setIsProcessingPM(false);
     }
@@ -329,10 +350,35 @@ export const App: React.FC = () => {
                   companies={companies}
                   systems={systems}
                   tasks={tasks}
+                  onNavigate={(page) => {
+                      if(page === 'create-ticket') {
+                          setCurrentPage('workorders');
+                          setIsCreatingTicket(true);
+                      } else {
+                          handleNavigate(page);
+                      }
+                  }}
                />;
       
-      case 'form-analytics': // New Page
+      case 'calendar':
+        return <CalendarView 
+                  workOrders={workOrders}
+                  onSelectWorkOrder={(id) => {
+                      setSelectedWorkOrderId(id);
+                      setCurrentPage('workorders');
+                  }}
+               />;
+
+      case 'form-analytics':
         return <FormAnalytics />;
+        
+      case 'smart-assistant':
+        return <SmartAssistant 
+                  workOrders={workOrders} 
+                  assets={assets}
+                  partsUsed={partsUsed}
+                  inventoryParts={inventoryParts}
+               />;
 
       case 'workorders':
         if (isCreatingTicket) {
@@ -340,16 +386,13 @@ export const App: React.FC = () => {
             <CreateTicket 
               companies={companies}
               assets={assets}
-              locations={locations}
-              systems={systems}
-              equipmentTypes={equipmentTypes}
-              users={allUsers}
-              currentUser={user}
               onCreate={(newTicket) => {
                 setWorkOrders(prev => [newTicket, ...prev]);
                 setIsCreatingTicket(false);
+                showToast("Ticket Created", `Work Order ${newTicket.woNumber} created`, "success");
               }}
               onCancel={() => setIsCreatingTicket(false)}
+              onShowToast={showToast}
             />
           );
         }
@@ -377,13 +420,16 @@ export const App: React.FC = () => {
                  setWorkOrders(prev => prev.map(w => w.id === updatedWo.id ? updatedWo : w));
                  setTasks(prev => [...prev.filter(t => t.workOrderId !== updatedWo.id), ...updatedTasks]);
                  setPartsUsed(prev => [...prev.filter(p => p.workOrderId !== updatedWo.id), ...updatedParts]);
-                 handleManualSync();
+                 showToast("Saved", "Work Order updated successfully", "success");
+                 handleManualSync(); // Trigger background sync
               }}
               onBack={() => setSelectedWorkOrderId(null)}
               onDelete={(id) => {
                  setWorkOrders(prev => prev.filter(w => w.id !== id));
                  setSelectedWorkOrderId(null);
+                 showToast("Deleted", "Work Order deleted", "info");
               }}
+              onShowToast={showToast}
             />
           );
         }
@@ -502,7 +548,6 @@ export const App: React.FC = () => {
         );
 
       case 'assets':
-        // 1. Asset Details View
         if (selectedAssetId) {
           const asset = assets.find(a => a.id === selectedAssetId);
           if (asset) {
@@ -521,7 +566,6 @@ export const App: React.FC = () => {
           }
         }
         
-        // 2. Group Analytics View
         if (selectedGroup) {
             return (
                 <GroupDetails 
@@ -536,7 +580,6 @@ export const App: React.FC = () => {
             );
         }
 
-        // 3. Asset List View
         return (
           <AssetList 
             assets={assets} 
@@ -578,7 +621,7 @@ export const App: React.FC = () => {
                 };
                 createWorkOrder(newWO).then(res => {
                     setWorkOrders(prev => [{...newWO, id: res.id, woNumber: res.woNumber}, ...prev]);
-                    alert(`PM Work Order Created: ${res.woNumber}`);
+                    showToast("PM Generated", `Scheduled WO: ${res.woNumber}`, "success");
                 });
             }}
           />
@@ -611,12 +654,38 @@ export const App: React.FC = () => {
     }
   };
 
-  if (!user) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} isLoadingData={isLoading} />;
+  // --- LOADING SCREEN ---
+  if (!user || (isLoading && !isSyncing)) {
+    if (!user) {
+        return <LoginPage onLoginSuccess={handleLoginSuccess} isLoadingData={isLoading} />;
+    }
+    return (
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4 animate-in fade-in duration-500">
+            <div className="relative">
+                <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(37,99,235,0.3)] animate-pulse">
+                    <PenTool size={40} className="text-white" />
+                </div>
+                <div className="absolute -bottom-2 -right-2 bg-slate-800 p-1.5 rounded-full border-2 border-slate-900">
+                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                </div>
+            </div>
+            <div className="text-center mt-4 space-y-1">
+                <h1 className="text-2xl font-bold tracking-tight">NexGen CMMS</h1>
+                <p className="text-slate-400 text-sm">Synchronizing Enterprise Data...</p>
+            </div>
+        </div>
+    );
   }
 
+  // --- VIEW LOGIC ---
+  const isDetailView = 
+    (currentPage === 'workorders' && (isCreatingTicket || !!selectedWorkOrderId)) ||
+    (currentPage === 'assets' && (!!selectedAssetId || !!selectedGroup));
+
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-900">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      
       <Sidebar 
         currentPage={currentPage} 
         onNavigate={handleNavigate} 
@@ -625,21 +694,28 @@ export const App: React.FC = () => {
         isSyncing={isSyncing}
       />
       
-      <main className="flex-1 overflow-auto w-full md:ml-64 relative">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto pb-24 md:pb-8">
+      <main className="flex-1 overflow-auto w-full md:ml-64 relative bg-slate-50">
+        <div className="p-4 md:p-6 w-full pb-24 md:pb-8">
            {renderContent()}
         </div>
       </main>
 
       <button 
         onClick={() => setIsScanning(true)}
-        className="fixed bottom-8 right-8 hidden md:flex items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-300 hover:scale-110 transition-transform z-40"
+        className="hidden md:flex fixed bottom-8 right-8 items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full shadow-[0_8px_25px_rgba(37,99,235,0.4)] hover:scale-110 transition-transform z-40 active:scale-95"
         title="Scan QR Code"
       >
         <ScanLine size={24} />
       </button>
 
-      <MobileNav activeTab={currentPage} onNavigate={handleNavigate} />
+      {/* Mobile Nav - Hide on detail views to prevent overlap with sticky footers */}
+      {!isDetailView && (
+        <MobileNav 
+            activeTab={currentPage} 
+            onNavigate={handleNavigate} 
+            onOpenMenu={() => setIsSidebarOpen(true)}
+        />
+      )}
       
       <QRScanner 
         isOpen={isScanning} 

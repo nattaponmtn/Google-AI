@@ -1,8 +1,7 @@
 {
   "name": "NexGen CMMS",
-  "description": "A modern Computerized Maintenance Management System for SMEs, featuring AI-powered diagnostics, image editing for reporting, and multi-company asset management.",
+  "description": "A modern Computerized Maintenance Management System for SMEs, featuring AI-powered diagnostics and multi-company asset management.",
   "requestFramePermissions": [
-    "camera",
-    "microphone"
+    "camera"
   ]
 }
