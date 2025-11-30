@@ -1,4 +1,3 @@
-
 import { WorkOrder, Priority, Status, Asset, WorkType, WorkOrderTask, WorkOrderPart, Company, Location, System, EquipmentType, PMTemplate, PMTemplateDetail, InventoryPart, Tool, ToolCheckout, UserProfile, StorageLocation } from "../types";
 import { RawAsset, RawWorkOrder, RawCompany, RawLocation, RawSystem, RawEquipmentType, RawPMTemplate, RawPMDetail, RawWorkOrderTask, RawPart, RawWOPart, RawTool, RawToolCheckout, RawUserProfile, RawAttachment, RawStorageLocation } from "../types";
 import { SHEET_API_URL, SHEET_API_KEY } from "../constants";
@@ -36,14 +35,26 @@ const getVal = (obj: any, keys: string[]) => {
 
 // --- NORMALIZATION HELPERS ---
 
-const normalizeCompany = (raw: RawCompany): Company => ({
-    id: raw.id,
-    name: raw.name,
-    latitude: raw.latitude || '',
-    longitude: raw.longitude || '',
-    address: raw.address || '-',
-    code: raw.code
-});
+const normalizeCompany = (raw: RawCompany): Company => {
+    // Robustly fetch code. If it is '-' or empty, we might use ID later in the app, 
+    // but here we ensure we get whatever valid string is in the DB or null.
+    let code = getVal(raw, ['code', 'Company Code', 'Code', 'อักษรย่อ']);
+    
+    // Filter out placeholder dashes or invalid strings
+    if (code === '-' || code === ' - ' || !code) {
+        // Fallback to ID if code is invalid or missing
+        code = raw.id; 
+    }
+
+    return {
+        id: raw.id,
+        name: raw.name,
+        latitude: raw.latitude || '',
+        longitude: raw.longitude || '',
+        address: raw.address || '-',
+        code: String(code)
+    };
+};
 
 const normalizeLocation = (raw: RawLocation): Location => ({
     id: raw.id,
@@ -64,12 +75,16 @@ const normalizeSystem = (raw: RawSystem): System => ({
     description: raw.description || ''
 });
 
-const normalizeEquipType = (raw: RawEquipmentType): EquipmentType => ({
-    id: raw.id,
-    name: raw.name,
-    nameTh: raw.name_th || raw.name,
-    description: raw.description || ''
-});
+const normalizeEquipType = (raw: RawEquipmentType): EquipmentType => {
+    // Robustly fetch Thai name
+    const nameTh = getVal(raw, ['name_th', 'Name_Th', 'Name_TH', 'Thai Name', 'ชื่อไทย']);
+    return {
+        id: raw.id,
+        name: raw.name,
+        nameTh: String(nameTh || raw.name),
+        description: raw.description || ''
+    };
+};
 
 const normalizeAsset = (raw: RawAsset, locations: Location[]): Asset => {
     const loc = locations.find(l => l.id === raw.location_id);
@@ -216,7 +231,9 @@ const normalizeWOPart = (raw: RawWOPart): WorkOrderPart => ({
 const normalizeTool = (raw: RawTool): Tool => ({
     id: raw.id,
     name: raw.name,
-    status: raw.status || Status.AVAILABLE
+    status: raw.status || Status.AVAILABLE,
+    condition: raw.condition || 'Good',
+    imageUrl: raw.image_url || `https://placehold.co/600x400/f1f5f9/334155?text=${encodeURIComponent(raw.name)}`
 });
 
 const normalizeCheckout = (raw: RawToolCheckout): ToolCheckout => ({
@@ -272,7 +289,16 @@ export const fetchFullDatabase = async (): Promise<FullDatabase | null> => {
              console.error("API Response Status:", response.status);
              throw new Error("Network response was not ok");
         }
-        const data = await response.json();
+        
+        const text = await response.text();
+        
+        // Critical check: Google Apps Script returns HTML error pages on timeout/crash
+        if (text.trim().startsWith('<')) {
+            console.error("API returned HTML instead of JSON (likely script error):", text.substring(0, 100));
+            throw new Error("Server Error: Received HTML response");
+        }
+
+        const data = JSON.parse(text);
 
         const companies = (data['Companies'] || []).map(normalizeCompany);
         const locations = (data['Locations'] || []).map(normalizeLocation);
@@ -419,14 +445,19 @@ export const updateWorkOrder = async (
         body: JSON.stringify(payload)
     });
     
-    if (!response.ok) return false;
+    if (!response.ok) throw new Error("Network error");
     
     const result = await response.json();
+    
+    // CRITICAL FIX: Properly throw the error message from the backend (e.g., Stock Insufficient)
+    if (result.status === 'error') {
+        throw new Error(result.message || "Server Error");
+    }
     return result.status === 'success';
     
-  } catch (e) {
+  } catch (e: any) {
       console.error("Save failed:", e);
-      return false;
+      throw e; // Propagate error to UI
   }
 };
 
@@ -452,7 +483,7 @@ export const deleteWorkOrder = async (id: string): Promise<boolean> => {
     }
 };
 
-// --- INVENTORY ACTIONS ---
+// --- INVENTORY CRUD ACTIONS ---
 
 export const createPart = async (part: InventoryPart): Promise<boolean> => {
     try {
@@ -542,6 +573,30 @@ export const deletePart = async (id: string): Promise<boolean> => {
         return result.status === 'success';
     } catch (error) {
         console.error("Delete part failed:", error);
+        return false;
+    }
+};
+
+// --- TOOL AUDIT ACTIONS ---
+
+export const updateToolStatus = async (id: string, status: string, condition: string): Promise<boolean> => {
+    try {
+        const payload = {
+            action: 'updateToolStatus',
+            payload: { id, status, condition }
+        };
+
+        const response = await fetch(getAuthUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error('Network error during tool update');
+        const result = await response.json();
+        return result.status === 'success';
+    } catch (error) {
+        console.error("Update tool status failed:", error);
         return false;
     }
 };
