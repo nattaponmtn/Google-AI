@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, ClipboardList, PenTool, Settings, Building2, X, BookOpenCheck, Package, Wrench, Database, Loader2, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, PenTool, Settings, Building2, X, BookOpenCheck, Package, Wrench, Database, Loader2, RefreshCw, FileSpreadsheet } from 'lucide-react';
 
 interface SidebarProps {
   currentPage: string;
@@ -14,13 +14,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'workorders', label: 'Work Orders', icon: ClipboardList },
-    // Calendar removed as it is now a view inside Work Orders
+    { id: 'form-analytics', label: 'Check Sheets', icon: FileSpreadsheet }, // New Item
     { id: 'assets', label: 'Asset Registry', icon: Building2 },
     { id: 'pm-plans', label: 'Maintenance Plans', icon: BookOpenCheck },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'tool-crib', label: 'Tool Crib', icon: Wrench },
     { id: 'database-manager', label: 'Database', icon: Database },
-    // AI features removed for deployment/testing
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

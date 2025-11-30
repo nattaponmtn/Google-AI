@@ -10,7 +10,7 @@ interface PMSelectionModalProps {
   pmDetails: PMTemplateDetail[];
   onConfirm: (selectedIds: string[]) => void;
   scannedCode: string;
-  isProcessing: boolean; // New prop
+  isProcessing: boolean;
 }
 
 export const PMSelectionModal: React.FC<PMSelectionModalProps> = ({ 
@@ -57,7 +57,7 @@ export const PMSelectionModal: React.FC<PMSelectionModalProps> = ({
               <ListChecks className="text-blue-600" size={20} />
               Select Maintenance Plans
             </h3>
-            <p className="text-xs text-slate-500 mt-1 font-mono">Source: {scannedCode}*</p>
+            <p className="text-xs text-slate-500 mt-1 font-mono">Asset: {scannedCode}</p>
           </div>
           {!isProcessing && (
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-full transition-colors">
@@ -69,7 +69,7 @@ export const PMSelectionModal: React.FC<PMSelectionModalProps> = ({
         {/* List */}
         <div className="overflow-y-auto p-4 space-y-3 flex-1">
           <div className="flex justify-between items-center mb-2 px-1">
-            <span className="text-sm text-slate-500 font-medium">Found {matchedTemplates.length} templates</span>
+            <span className="text-sm text-slate-500 font-medium">Found {matchedTemplates.length} PM Plans</span>
             <button 
               onClick={toggleSelectAll}
               className="text-xs font-bold text-blue-600 hover:underline"
@@ -132,12 +132,12 @@ export const PMSelectionModal: React.FC<PMSelectionModalProps> = ({
             {isProcessing ? (
                 <>
                     <Loader2 size={20} className="animate-spin" />
-                    Creating {selectedIds.length} Tickets...
+                    Generating...
                 </>
             ) : (
                 <>
                     <PlayCircle size={20} />
-                    Generate {selectedIds.length} Work Orders
+                    Open {selectedIds.length} Work Orders
                 </>
             )}
           </button>
