@@ -74,7 +74,7 @@ export interface RawWorkOrderTask {
 }
 export interface RawPart { 
   id: string; 
-  name_en: string; // Changed from 'name' to match backend update
+  name_en: string; 
   name_th?: string; 
   stock_quantity: number; 
   min_stock_level: number; 
@@ -84,7 +84,13 @@ export interface RawPart {
   category?: string;
 }
 export interface RawWOPart { id: string; work_order_id: string; part_id: string; quantity_used: number; }
-export interface RawTool { id: string; name: string; status: string; }
+export interface RawTool { 
+  id: string; 
+  name: string; 
+  status: string; 
+  condition?: string;
+  image_url?: string;
+}
 export interface RawToolCheckout { id: string; tool_id: string; work_order_id: string; checked_out_by_user_id: string; checked_out_at: string; checked_in_at?: string; }
 export interface RawUserProfile { 
   id: string; user_id: string; company_id: string; first_name: string; last_name: string; 
@@ -239,6 +245,8 @@ export interface Tool {
   id: string;
   name: string;
   status: Status | string;
+  condition?: string;
+  imageUrl?: string;
 }
 
 export interface ToolCheckout {
